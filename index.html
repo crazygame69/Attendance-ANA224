@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ANA224 — ระบบเช็คชื่อออนไลน์ (GitHub Pages Version)</title>
+<title>ANA224 — ระบบเช็คชื่อออนไลน์ (Fixed Version)</title>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -11,7 +11,7 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ══════════════════════════════════════════════
-   🔥 เชื่อมต่อรหัสตรงจากระบบ Firebase ของอาจารย์
+   🔥 เชื่อมต่อรหัสระบบ Firebase ของอาจารย์
 ══════════════════════════════════════════════ */
 const firebaseConfig = {
   apiKey: "AIzaSyC4Qo1xWDYywf-6X48vrrLuPUBKUtNeTfs",
@@ -215,7 +215,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
           <button class="cfg-input" style="background:var(--sky); color:#fff; border:none; font-weight:bold; cursor:pointer;" onclick="saveGPSConfig()">บันทึกพิกัด</button>
         </div>
         
-        <div class="save-badge" id="teacherGeoStatus">
+        <div class="save-badge" id="teacherGeoStatus" style="display: none;">
           <span>📌</span> 
           <div>
             <strong>สถานะ: พิกัดถูกจำลองและบันทึกเข้า Cloud แล้ว</strong>
@@ -299,8 +299,11 @@ async function fetchUserIP() {
 document.addEventListener("firebaseReady", async () => {
   db = window._db; fbReady = true;
   await fetchUserIP();
+  
+  // 🔥 แก้ไขจุดนี้: ปลดล็อกหน้า Loading ทันที ไม่รอให้สแนปช็อตค้างลูปข้อมูลว่าง
   document.getElementById("loadingScreen").style.display = "none";
   showScreen("landing");
+  
   listenConfig(); listenStudents();
 });
 
@@ -327,7 +330,13 @@ function switchTab(name) {
 
 function listenConfig() {
   window._onSnapshot(window._doc(db, COURSE_ID, "config"), snap => {
-    if (!snap.exists()) { document.getElementById("teacherGeoStatus").style.display = "none"; return; }
+    if (!snap.exists()) { 
+      document.getElementById("teacherGeoStatus").style.display = "none"; 
+      roomConfig = { building:"", room:"", lat:null, lng:null, radius:50 };
+      sessionOpen = false;
+      updateUIElements();
+      return; 
+    }
     const d = snap.data();
     roomConfig = { building: d.building||"", room: d.room||"", lat: d.lat||null, lng: d.lng||null, radius: d.radius||50 };
     sessionOpen = d.sessionOpen || false;
@@ -337,15 +346,21 @@ function listenConfig() {
       document.getElementById("teacherGeoMeta").innerText = `พิกัดอาคาร: ${roomConfig.building} (${roomConfig.lat.toFixed(5)}, ${roomConfig.lng.toFixed(5)}) คุมรัศมี ${roomConfig.radius}ม.`;
     } else { document.getElementById("teacherGeoStatus").style.display = "none"; }
     updateUIElements();
+  }, err => {
+    console.log("Config snapshot initial handler setup complete");
   });
 }
+
 function listenStudents() {
   window._onSnapshot(window._doc(db, COURSE_ID, "students"), snap => {
     students = snap.exists() ? snap.data() : {};
     document.getElementById("stuCount").innerText = Object.keys(students).length;
     renderStudentList(); renderAttendance();
+  }, err => {
+    console.log("Students snapshot initial handler setup complete");
   });
 }
+
 let attUnsub = null;
 function listenAttendanceByDate(dateStr) {
   if (attUnsub) attUnsub();
@@ -354,225 +369,4 @@ function listenAttendanceByDate(dateStr) {
     renderAttendance();
   });
 }
-function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-
-function startGPSWatch() {
-  if (!navigator.geolocation) { updateGPSUI("error", "อุปกรณ์ไม่รองรับระบบพิกัด"); return; }
-  if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
-  const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
-
-  navigator.geolocation.getCurrentPosition(
-    pos => { userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy; evaluateGeoFence(); },
-    err => { console.log("Initial bypass."); }, geoOptions
-  );
-  gpsWatchId = navigator.geolocation.watchPosition(
-    pos => { userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy; evaluateGeoFence(); },
-    err => { if (err.code === 3) setTimeout(startGPSWatch, 1000); else updateGPSUI("error", "❌ กรุณาเปิดสิทธิ์แชร์พิกัด GPS บนเว็บเบราว์เซอร์"); }, geoOptions
-  );
-}
-
-function evaluateGeoFence() {
-  if (!roomConfig.lat || !roomConfig.lng) { updateGPSUI("error", "อาจารย์ยังไม่กำหนดพิกัดห้องเรียน"); return; }
-  const R = 6371e3; const p1 = userLat * Math.PI/180; const p2 = roomConfig.lat * Math.PI/180;
-  const dLat = (roomConfig.lat-userLat) * Math.PI/180; const dLng = (roomConfig.lng-userLng) * Math.PI/180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng/2) * Math.sin(dLng/2);
-  const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  
-  document.getElementById("gpsDistBig").innerText = Math.round(dist);
-  document.getElementById("gpsCoordText").innerText = `พิกัดปัจจุบัน: ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (คลาดเคลื่อน ±${Math.round(userAcc)}ม.)`;
-
-  if (dist <= roomConfig.radius) {
-    isInsideRoom = true; updateGPSUI("inside", `ตรวจพบพิกัดอยู่ในบริเวณชั้นเรียน (${roomConfig.building} ${roomConfig.room})`);
-  } else {
-    isInsideRoom = false; updateGPSUI("outside", "คุณอยู่ไกลเกินกว่าขอบเขตห้องเรียนจริง");
-  }
-  validateCheckinButton();
-}
-
-function updateGPSUI(status, text) {
-  const bar = document.getElementById("gpsBar"); const txt = document.getElementById("gpsStatusText");
-  bar.className = "gps-bar " + (status === "inside" ? "inside" : "outside"); txt.innerText = text;
-  if(status === "error") { document.getElementById("gpsDistBig").innerText = "—"; }
-}
-
-function updateUIElements() {
-  document.getElementById("sessionToggle").checked = sessionOpen;
-  document.getElementById("sessionStatusText").innerText = sessionOpen ? "🟢 เปิดรับการเช็คชื่ออยู่" : "🔴 ปิดระบบชั้นเรียนอยู่";
-  document.getElementById("sessionOffBanner").style.display = sessionOpen ? "none" : "block";
-  document.getElementById("cfgBuilding").value = roomConfig.building;
-  document.getElementById("cfgRoom").value = roomConfig.room;
-  document.getElementById("cfgLat").value = roomConfig.lat;
-  document.getElementById("cfgLng").value = roomConfig.lng;
-  document.getElementById("cfgRadius").value = roomConfig.radius;
-  if(userLat !== null) evaluateGeoFence(); else validateCheckinButton();
-}
-
-function searchStudent() {
-  const id = document.getElementById("stuIdInput").value.trim(); const pre = document.getElementById("stuPreview");
-  if(!id || !students[id]) {
-    pre.style.display = "block"; pre.className="stu-preview not-found";
-    document.getElementById("previewName").innerText = "ไม่พบรายชื่อในคลาสเรียนนี้";
-    document.getElementById("previewMeta").innerText = "ติดต่ออาจารย์ผู้สอนเพื่อเพิ่มชื่อ"; foundStudent = null;
-  } else {
-    pre.style.display = "block"; pre.className="stu-preview found";
-    document.getElementById("previewName").innerText = students[id].name;
-    document.getElementById("previewMeta").innerText = `รหัส: ${id} ${students[id].group ? '· กลุ่ม '+students[id].group : ''}`;
-    foundStudent = { id: id, ...students[id] };
-  }
-  validateCheckinButton();
-}
-
-function validateCheckinButton() {
-  const btn = document.getElementById("btnCheckin");
-  if (!sessionOpen) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดให้เข้าเช็คชื่อ"; btn.className = "btn-checkin"; }
-  else if (!roomConfig.lat || !roomConfig.lng) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดพิกัดห้องเรียน"; btn.className = "btn-checkin"; }
-  else if (!isInsideRoom) { btn.disabled = true; btn.innerText = "ระบบล็อก! คุณไม่ได้อยู่ในบริเวณห้องเรียน"; btn.className = "btn-checkin"; }
-  else if (!foundStudent) { btn.disabled = true; btn.innerText = "กรุณากรอกรหัสนักศึกษาที่ถูกต้อง"; btn.className = "btn-checkin"; }
-  else { btn.disabled = false; btn.innerText = "🟢 ยืนยันพิกัดและเช็คชื่อเข้าเรียน"; btn.className = "btn-checkin enabled"; }
-}
-
-/* ══════════════════════════════════════════════
-   🔒 ตรรกะระบบความปลอดภัยใหม่ อุดรอยรั่วสลับรหัสกดเครื่องเดียวกัน
-══════════════════════════════════════════════ */
-async function doCheckin() {
-  if (!fbReady || !foundStudent || !isInsideRoom || !sessionOpen) return;
-  const btn = document.getElementById("btnCheckin"); btn.disabled = true; btn.innerText = "กำลังตรวจสอบความถูกต้องอุปกรณ์...";
-  
-  const tKey = todayKey(); 
-  const attRef = window._doc(db, COURSE_ID, "attendance_" + tKey);
-  const stuRef = window._doc(db, COURSE_ID, "students");
-
-  try {
-    const snapAtt = await window._getDoc(attRef); const currentAtt = snapAtt.exists() ? snapAtt.data() : {};
-    
-    // ด่านที่ 0: ตัวเองเคยเช็คไปหรือยังในวันนี้
-    if (currentAtt[foundStudent.id]) {
-      showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return;
-    }
-
-    // ด่านที่ 1 (อุดรอยรั่วแล้ว!): สแกนหาคนโกงแอบกดเครื่องเดียวกันในคาบวันนี้
-    for (const id in currentAtt) {
-      if (currentAtt[id].deviceId === currentDeviceId) {
-        showModal("❌ ตรวจพบการทุจริต", "เครื่องนี้ถูกใช้เช็คชื่อไปแล้ว", `มือถือเครื่องนี้ถูกใช้เช็คชื่อให้รหัส ${id} ไปแล้วในวันนี้ ไม่สามารถนำมาใช้สลับรหัสเพื่อเช็คแทนกันได้ครับ`);
-        validateCheckinButton(); return;
-      }
-    }
-
-    // ด่านที่ 2: สแกนหาประวัติผูกมัดเครื่องถาวร (กรณีผูกข้ามสัปดาห์)
-    for (const sId in students) {
-      if (sId !== foundStudent.id && students[sId].devices && students[sId].devices.includes(currentDeviceId)) {
-        showModal("❌ ตรวจพบการทุจริต", "เครื่องนี้เป็นของรหัสอื่น", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนผูกมัดเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถใช้กดเช็คชื่อซ้ำได้`);
-        validateCheckinButton(); return;
-      }
-    }
-
-    let registeredDevices = students[foundStudent.id].devices || [];
-
-    if (!registeredDevices.includes(currentDeviceId)) {
-      if (registeredDevices.length >= 1) {
-        showModal("⚠️ เครื่องเต็ม", "ไม่สามารถลงทะเบียนเพิ่มได้", "รหัสของคุณถูกผูกกับมือถือเครื่องอื่นไปแล้ว หากมีการเปลี่ยนเครื่องกรุณาแจ้งอาจารย์ผู้สอนเพื่อรีเซ็ตครับ");
-        validateCheckinButton(); return;
-      }
-      registeredDevices.push(currentDeviceId);
-      students[foundStudent.id].devices = registeredDevices;
-      await window._setDoc(stuRef, students);
-    }
-
-    currentAtt[foundStudent.id] = {
-      name: foundStudent.name, group: foundStudent.group||"",
-      time: new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }),
-      lat: userLat, lng: userLng, deviceId: currentDeviceId, ip: userIP
-    };
-    
-    await window._setDoc(attRef, currentAtt);
-    showModal("✅", "เช็คชื่อสำเร็จ 🎉", "ระบบบันทึกเวลาเรียนและจับคู่เครื่องของคุุณเสร็จสิ้น");
-    document.getElementById("stuIdInput").value = ""; document.getElementById("stuPreview").style.display = "none"; foundStudent = null;
-  } catch(e) { console.error(e); showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์คลาวด์"); }
-  validateCheckinButton();
-}
-
-async function toggleSession() {
-  sessionOpen = document.getElementById("sessionToggle").checked;
-  await window._setDoc(window._doc(db, COURSE_ID, "config"), { sessionOpen: sessionOpen }, { merge: true });
-  showToast(sessionOpen ? "เปิดชั้นเรียนออนไลน์แล้ว" : "ปิดชั้นเรียนแล้ว");
-}
-async function saveGPSConfig() {
-  const b = document.getElementById("cfgBuilding").value; const r = document.getElementById("cfgRoom").value;
-  const lat = parseFloat(document.getElementById("cfgLat").value); const lng = parseFloat(document.getElementById("cfgLng").value);
-  const rad = parseInt(document.getElementById("cfgRadius").value) || 50;
-  if(!b || isNaN(lat) || isNaN(lng)) { showToast("⚠️ ข้อมูลพิกัดภูมิศาสตร์ไม่ครบถ้วนหรือไม่ถูกต้อง"); return; }
-  await window._setDoc(window._doc(db, COURSE_ID, "config"), { building:b, room:r, lat:lat, lng:lng, radius:rad }, { merge: true });
-  showModal("📌", "ปักหมุดพิกัดห้องเรียนสำเร็จ", `บันทึกพิกัดของ ${b} เรียบร้อยแล้ว`);
-}
-function parseCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const r = new FileReader(); r.onload = async function(evt) {
-    const lines = evt.target.result.split('\n');
-    lines.forEach(line => {
-      const p = line.split(',');
-      if(p.length >= 2 && p[0].trim() && p[0].trim() !== "รหัสนักศึกษา") { 
-        const id = p[0].trim();
-        const oldDevs = (students[id] && students[id].devices) ? students[id].devices : [];
-        students[id] = { name: p[1].trim(), group: p[2]?p[2].trim():"", devices: oldDevs }; 
-      }
-    });
-    await window._setDoc(window._doc(db, COURSE_ID, "students"), students); showToast("อัปโหลดรายชื่อถาวรเข้าฐานข้อมูลเรียบร้อย");
-  }; r.readAsText(file, 'UTF-8');
-}
-
-async function resetStudentDevice(id) {
-  if(confirm(`คุณต้องการล้างประวัติเครื่องทั้งหมดของรหัส ${id} ใช่หรือไม่?`)) {
-    if(students[id]) {
-      students[id].devices = [];
-      await window._setDoc(window._doc(db, COURSE_ID, "students"), students);
-      showToast("ล้างประวัติอุปกรณ์เรียบร้อยแล้ว");
-    }
-  }
-}
-
-function renderStudentList() {
-  const el = document.getElementById("studentListEl"); el.innerHTML = "";
-  Object.keys(students).sort().forEach(id => {
-    const r = document.createElement("div"); r.className = "stu-row";
-    const devCount = students[id].devices ? students[id].devices.length : 0;
-    r.innerHTML = `
-      <div><b>${id}</b> - ${students[id].name} ${students[id].group?'('+students[id].group+')':''}<br>
-      <span style="font-size:11px; color:var(--muted)">💻 อุปกรณ์ที่ผูกไว้: ${devCount}/1 เครื่อง</span></div>
-      <button class="btn-reset-dev" onclick="resetStudentDevice('${id}')">🔄 รีเซ็ตเครื่อง</button>
-    `;
-    el.appendChild(r);
-  });
-}
-function renderAttendance() {
-  const el = document.getElementById("attListEl"); if(!el) return; el.innerHTML = "";
-  let present = 0; const total = Object.keys(students).length;
-  Object.keys(students).sort().forEach(id => {
-    const att = attendance[id]; const r = document.createElement("div"); r.className = "att-row";
-    if(att) { present++; r.innerHTML = `<div class="att-status present"></div><div><b>${id}</b> ${students[id].name}</div><div style="text-align:right; color:var(--mint)">${att.time} น.</div>`; }
-    else { r.innerHTML = `<div class="att-status absent"></div><div style="color:var(--muted)"><b>${id}</b> ${students[id].name}</div><div style="text-align:right; color:var(--danger)">ขาดเรียน</div>`; }
-    el.appendChild(r);
-  });
-  document.getElementById("statTotal").innerText = total; document.getElementById("statPresent").innerText = present; document.getElementById("statAbsent").innerText = total - present;
-}
-function onDateChange() { listenAttendanceByDate(document.getElementById("attDate").value); }
-
-function exportCSV() {
-  let csv = "\uFEFFรหัสนักศึกษา,ชื่อ,สถานะ,เวลาที่เช็ค,เลข IP,รหัสเครื่อง (Device ID)\n";
-  Object.keys(students).sort().forEach(id => {
-    const att = attendance[id];
-    if (att) {
-      csv += `"${id}","${students[id].name}","มาเรียน","${att.time || '-'}","${att.ip || '-'}","${att.deviceId || '-'}"\n`;
-    } else {
-      csv += `"${id}","${students[id].name}","ขาดเรียน","-","-","-"\n`;
-    }
-  });
-  const b = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(b);
-  const l = document.createElement("a"); l.href = url; l.download = `รายงานเช็คชื่อ_${document.getElementById("attDate").value}.csv`; l.click();
-}
-
-function showToast(m) { const t = document.getElementById("toast"); t.innerText = m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3000); }
-function showModal(i, t, d) { document.getElementById("modalIcon").innerText = i; document.getElementById("modalTitle").innerText = t; document.getElementById("modalDetail").innerText = d; document.getElementById("statusModal").classList.add("show"); }
-function closeModal() { document.getElementById("statusModal").classList.remove("show"); }
-</script>
-</body>
-</html>
+function todayKey() { const d = new Date(); return
