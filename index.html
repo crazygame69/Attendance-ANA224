@@ -109,6 +109,9 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .cfg-input { padding: 10px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; width: 100%; outline: none; }
 
+/* ไฟสถานะตรวจเช็คความปลอดภัยของอาจารย์ที่เพิ่มขึ้นมาใหม่ */
+.save-badge { grid-column: span 2; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(16,185,129,0.1); border: 1px dashed var(--mint); color: var(--mint); font-size: 13px; margin-top: 8px; font-weight: 500; }
+
 .stu-row, .att-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
 .stu-row div, .att-row div { flex: 1; }
 .btn-del { background: none; border: none; color: var(--muted); cursor: pointer; }
@@ -217,6 +220,15 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
         <div style="display:flex; align-items:flex-end; gap:5px;">
           <button class="cfg-input" style="background:var(--sky); color:#fff; border:none; font-weight:bold; cursor:pointer;" onclick="saveGPSConfig()">บันทึกพิกัด</button>
         </div>
+        
+        <div class="save-badge" id="teacherGeoStatus">
+          <span>📌</span> 
+          <div>
+            <strong>สถานะ: พิกัดถูกจำลองและบันทึกเข้า Cloud แล้ว</strong>
+            <div id="teacherGeoMeta" style="font-size:11px; opacity:0.8;">(รอรับข้อมูลพิกัดชุดถัดไปจากอาจารย์)</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -267,7 +279,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 <div class="toast" id="toast"></div>
 
 <script>
-const TEACHER_PASS = "teacher1234"; // รหัสเข้าหลังบ้านของอาจารย์
+const TEACHER_PASS = "teacher1234"; 
 const COURSE_ID    = "ANA224";
 
 let db, fbReady = false;
@@ -275,7 +287,6 @@ let students = {}; let attendance = {}; let roomConfig = {}; let sessionOpen = f
 let userLat = null; let userLng = null; let userAcc = null; let isInsideRoom = false; let foundStudent = null; let gpsWatchId = null;
 let userIP = "0.0.0.0";
 
-// 🛡️ ป้องกันเช็คชื่อแทนกัน: สร้างรหัสจำลายนิ้วมือเครื่องรวมถึงเวอร์ชันเบราว์เซอร์อย่างละเอียดขั้นสูงสุด
 function getDeviceFingerprint() {
   const navigatorInfo = window.navigator.userAgent + window.navigator.language + window.screen.colorDepth;
   const screenInfo = window.screen.width + "x" + window.screen.height + "x" + window.devicePixelRatio;
@@ -284,7 +295,6 @@ function getDeviceFingerprint() {
 }
 const currentDeviceId = getDeviceFingerprint();
 
-// โหลด IP เพื่อระบุโครงข่ายอินเทอร์เน็ตเบื้องต้น
 async function fetchUserIP() {
   try {
     const res = await fetch("https://api.ipify.org?format=json");
@@ -322,12 +332,24 @@ function switchTab(name) {
   document.getElementById("tab-" + name).classList.add("active"); event.currentTarget.classList.add("active");
 }
 
-/* FIREBASE REALTIME LISTENERS */
 function listenConfig() {
   window._onSnapshot(window._doc(db, COURSE_ID, "config"), snap => {
-    if (!snap.exists()) return; const d = snap.data();
+    if (!snap.exists()) {
+      document.getElementById("teacherGeoStatus").style.display = "none";
+      return;
+    }
+    const d = snap.data();
     roomConfig = { building: d.building||"", room: d.room||"", lat: d.lat||null, lng: d.lng||null, radius: d.radius||50 };
     sessionOpen = d.sessionOpen || false;
+    
+    // อัปเดตสัญลักษณ์ไฟแจงข้อความสถานะให้คุณอาจารย์ทราบทางหน้าจอ
+    if(roomConfig.lat && roomConfig.lng) {
+      document.getElementById("teacherGeoStatus").style.display = "flex";
+      document.getElementById("teacherGeoMeta").innerText = `พิกัดอาคาร: ${roomConfig.building} (${roomConfig.lat.toFixed(5)}, ${roomConfig.lng.toFixed(5)}) คุมรัศมี ${roomConfig.radius}ม.`;
+    } else {
+      document.getElementById("teacherGeoStatus").style.display = "none";
+    }
+
     updateUIElements();
   });
 }
@@ -348,40 +370,26 @@ function listenAttendanceByDate(dateStr) {
 }
 function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 
-/* 🔥 จุดแก้ไขใหญ่: ปรับปรุงระบบ Geolocation แก้ปัญหาสัญญาณหลุด/ค้าง บนอุปกรณ์พกพา */
 function startGPSWatch() {
   if (!navigator.geolocation) { updateGPSUI("error", "อุปกรณ์ไม่รองรับระบบพิกัด"); return; }
-  
   if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+  const geoOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
-  // กำหนด Option ความแม่นยำสูง และขยายเวลาสแกนดาวเทียมเพื่อป้องกันปัญหาระบบ Hang เงียบ
-  const geoOptions = {
-    enableHighAccuracy: true,
-    timeout: 15000, 
-    maximumAge: 0
-  };
+  navigator.geolocation.getCurrentPosition(
+    pos => { userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy; evaluateGeoFence(); },
+    err => { console.log("Initial fetch bypass."); },
+    geoOptions
+  );
 
   gpsWatchId = navigator.geolocation.watchPosition(
-    pos => {
-      userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy;
-      evaluateGeoFence();
-    },
-    err => { 
-      // หากเกิดปัญหาพิกัดหมดเวลา (Timeout) หรือพิกัดไม่นิ่ง ให้สั่งรันลูป GPS ขยับสแกนใหม่อัตโนมัติ
-      if (err.code === 3) {
-        console.log("GPS Timeout, restarting watch...");
-        setTimeout(startGPSWatch, 1000);
-      } else {
-        updateGPSUI("error", "❌ กรุณาเปิดสิทธิ์แชร์ตำแหน่งที่ตั้ง GPS (แนะนำให้เปิดผ่าน Safari / Chrome ห้ามเปิดในแอป LINE)"); 
-      }
-    },
+    pos => { userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy; evaluateGeoFence(); },
+    err => { if (err.code === 3) setTimeout(startGPSWatch, 1000); else updateGPSUI("error", "❌ กรุณาเปิดสิทธิ์แชร์พิกัด GPS (ห้ามเปิดเช็คชื่อในแอป LINE)"); },
     geoOptions
   );
 }
 
 function evaluateGeoFence() {
   if (!roomConfig.lat || !roomConfig.lng) { updateGPSUI("error", "อาจารย์ยังไม่กำหนดพิกัดห้องเรียน"); return; }
-  
   const R = 6371e3; const p1 = userLat * Math.PI/180; const p2 = roomConfig.lat * Math.PI/180;
   const dLat = (roomConfig.lat-userLat) * Math.PI/180; const dLng = (roomConfig.lng-userLng) * Math.PI/180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng/2) * Math.sin(dLng/2);
@@ -417,8 +425,7 @@ function updateUIElements() {
 }
 
 function searchStudent() {
-  const id = document.getElementById("stuIdInput").value.trim();
-  const pre = document.getElementById("stuPreview");
+  const id = document.getElementById("stuIdInput").value.trim(); const pre = document.getElementById("stuPreview");
   if(!id || !students[id]) {
     pre.style.display = "block"; pre.className="stu-preview not-found";
     document.getElementById("previewName").innerText = "ไม่พบรายชื่อในคลาสเรียนนี้";
@@ -435,41 +442,30 @@ function searchStudent() {
 function validateCheckinButton() {
   const btn = document.getElementById("btnCheckin");
   if (!sessionOpen) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดให้เข้าเช็คชื่อ"; btn.className = "btn-checkin"; }
+  else if (!roomConfig.lat || !roomConfig.lng) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดพิกัดห้องเรียน"; btn.className = "btn-checkin"; }
   else if (!isInsideRoom) { btn.disabled = true; btn.innerText = "ระบบล็อก! คุณไม่ได้อยู่ในบริเวณห้องเรียน"; btn.className = "btn-checkin"; }
   else if (!foundStudent) { btn.disabled = true; btn.innerText = "กรุณากรอกรหัสนักศึกษาที่ถูกต้อง"; btn.className = "btn-checkin"; }
   else { btn.disabled = false; btn.innerText = "🟢 ยืนยันพิกัดและเช็คชื่อเข้าเรียน"; btn.className = "btn-checkin enabled"; }
 }
 
-/* 🔥 จุดแก้ไขใหญ่: ระบบป้องกันทุจริตแบบ 1 เครื่องต่อ 1 รายชื่ออย่างแท้จริง (รองรับ Wi-Fi คณะ/แชร์ Hotspot) */
 async function doCheckin() {
   if (!fbReady || !foundStudent || !isInsideRoom || !sessionOpen) return;
   const btn = document.getElementById("btnCheckin"); btn.disabled = true; btn.innerText = "กำลังตรวจสอบมาตรการความปลอดภัย...";
-  
   const tKey = todayKey(); const attRef = window._doc(db, COURSE_ID, "attendance_" + tKey);
   try {
     const snap = await window._getDoc(attRef); const currentAtt = snap.exists() ? snap.data() : {};
-    
-    // 🛡️ ด่านที่ 1: ตรวจสอบว่ารหัสนักศึกษานี้เคยเช็คชื่อในวันนี้ไปแล้วหรือยัง
-    if (currentAtt[foundStudent.id]) {
-      showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return;
-    }
-    
-    // 🛡️ ด่านที่ 2: มาตรการล็อกสิทธิ์ Hardware เครื่องเด็ดขาด (1 เครื่อง = 1 สิทธิ์ประจำวัน)
-    // ยกเลิกการบล็อกไอพีซ้ำ เพื่อให้ใช้ Wi-Fi มหาลัยเดียวกันได้ แต่ "ห้ามใช้โทรศัพท์เครื่องเดียวกันเปลี่ยนรหัสกดเช็คชื่อแทนกัน"
+    if (currentAtt[foundStudent.id]) { showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return; }
     for (const id in currentAtt) {
       if (currentAtt[id].deviceId === currentDeviceId) {
         showModal("❌", "ระบบบล็อกการทุจริต", `มือถือเครื่องนี้ ได้ใช้เช็คชื่อให้เพื่อนรหัส ${id} ไปแล้ว! ห้ามเปลี่ยนรหัสเพื่อเช็คชื่อแทนกันเด็ดขาด`);
         validateCheckinButton(); return;
       }
     }
-
-    // ผ่านด่านความปลอดภัย -> ทำการบันทึกค่าลงคลาวด์คุมระยะไกล
     currentAtt[foundStudent.id] = {
       name: foundStudent.name, group: foundStudent.group||"",
       time: new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }),
       lat: userLat, lng: userLng, deviceId: currentDeviceId, ip: userIP
     };
-    
     await window._setDoc(attRef, currentAtt);
     showModal("✅", "เช็คชื่อสำเร็จ 🎉", "ระบบล็อกพิกัดภูมิศาสตร์และอุปกรณ์ของคุณเรียบร้อยแล้ว");
     document.getElementById("stuIdInput").value = ""; document.getElementById("stuPreview").style.display = "none"; foundStudent = null;
@@ -483,14 +479,21 @@ async function toggleSession() {
   await window._setDoc(window._doc(db, COURSE_ID, "config"), { sessionOpen: sessionOpen }, { merge: true });
   showToast(sessionOpen ? "เปิดชั้นเรียนออนไลน์แล้ว" : "ปิดชั้นเรียนแล้ว");
 }
+
+// 📌 ฟังก์ชันบันทึกพิกัดเวอร์ชันอัปเกรดระบบป็อปอัปสัญลักษณ์สถานะความสำเร็จ
 async function saveGPSConfig() {
   const b = document.getElementById("cfgBuilding").value; const r = document.getElementById("cfgRoom").value;
   const lat = parseFloat(document.getElementById("cfgLat").value); const lng = parseFloat(document.getElementById("cfgLng").value);
   const rad = parseInt(document.getElementById("cfgRadius").value) || 50;
-  if(!b || !lat || !lng) { showToast("ข้อมูลพิกัดภูมิศาสตร์ไม่ครบถ้วน"); return; }
+  
+  if(!b || isNaN(lat) || isNaN(lng)) { showToast("⚠️ ข้อมูลพิกัดภูมิศาสตร์ไม่ครบถ้วนหรือไม่ถูกต้อง"); return; }
+  
   await window._setDoc(window._doc(db, COURSE_ID, "config"), { building:b, room:r, lat:lat, lng:lng, radius:rad }, { merge: true });
-  showToast("อัปเดตขอบเขตพื้นที่ห้องเรียน (Geo-fencing) เรียบร้อย");
+  
+  // แสดงกล่องแจ้งเตือนความสำเร็จ (Modal Popup) ขึ้นมาตรงกลางหน้าจอทันที เพื่อเป็นสัญลักษณ์ยืนยัน
+  showModal("📌", "ปักหมุดพิกัดห้องเรียนสำเร็จ", `บันทึกพิกัดของ ${b} สู่ระบบคลาวด์เรียบร้อยแล้ว นักศึกษาในรัศมีจะสามารถกดเช็คชื่อได้ทันทีครับ`);
 }
+
 function parseCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   const r = new FileReader(); r.onload = async function(evt) {
