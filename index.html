@@ -445,20 +445,20 @@ async function doCheckin() {
   try {
     const snapAtt = await window._getDoc(attRef); const currentAtt = snapAtt.exists() ? snapAtt.data() : {};
     
-    // ด่านที่ 0: ตัวเองเคยเช็คไปหรือยัง
+    // ด่านที่ 0: ตัวเองเคยเช็คไปหรือยังในวันนี้
     if (currentAtt[foundStudent.id]) {
       showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return;
     }
 
-    // ด่านที่ 1 (อุดรอยรั่วใหม่!): สแกนหาคนโกงแอบกดเครื่องเดียวกันในวันนี้
-    for (const id ใน currentAtt) {
+    // ด่านที่ 1 (อุดรอยรั่วแล้ว!): สแกนหาคนโกงแอบกดเครื่องเดียวกันในคาบวันนี้
+    for (const id in currentAtt) {
       if (currentAtt[id].deviceId === currentDeviceId) {
         showModal("❌ ตรวจพบการทุจริต", "เครื่องนี้ถูกใช้เช็คชื่อไปแล้ว", `มือถือเครื่องนี้ถูกใช้เช็คชื่อให้รหัส ${id} ไปแล้วในวันนี้ ไม่สามารถนำมาใช้สลับรหัสเพื่อเช็คแทนกันได้ครับ`);
         validateCheckinButton(); return;
       }
     }
 
-    // ด่านที่ 2: สแกนหาประวัติผูกมัดเครื่องถาวร (กรณีเคยล็อกข้ามวัน)
+    // ด่านที่ 2: สแกนหาประวัติผูกมัดเครื่องถาวร (กรณีผูกข้ามสัปดาห์)
     for (const sId in students) {
       if (sId !== foundStudent.id && students[sId].devices && students[sId].devices.includes(currentDeviceId)) {
         showModal("❌ ตรวจพบการทุจริต", "เครื่องนี้เป็นของรหัสอื่น", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนผูกมัดเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถใช้กดเช็คชื่อซ้ำได้`);
