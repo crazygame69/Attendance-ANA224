@@ -3,510 +3,124 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ANA224 — ระบบเช็คชื่อออนไลน์ (ป้องกันการเช็คแทนกัน)</title>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc }
-  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-/* ══════════════════════════════════════════════
-   🔥 FIREBASE CONFIG — เปลี่ยนเป็นของคุณเอง
-══════════════════════════════════════════════ */
-const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
-};
-
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
-
-window._db = db; window._doc = doc; window._setDoc = setDoc; window._getDoc = getDoc;
-window._onSnapshot = onSnapshot; window._collection = collection; window._deleteDoc = deleteDoc;
-window._firebaseReady = true;
-document.dispatchEvent(new Event("firebaseReady"));
-</script>
-
+<title>ANA224 — ระบบเช็คชื่อล็อกพิกัด (ระบบส่งลิงก์)</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-
-:root {
-  --bg:      #0A1628;
-  --panel:   #0F2044;
-  --card:    #162952;
-  --border:  rgba(100,160,255,0.15);
-  --sky:     #3B82F6;
-  --skylt:   #60A5FA;
-  --mint:    #10B981;
-  --danger:  #EF4444;
-  --warn:    #F59E0B;
-  --text:    #E8EFF9;
-  --muted:   #7A92B4;
-  --r:       10px;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
-
-/* Screens */
-.screen { display: none; min-height: 100vh; flex-direction: column; }
-.screen.active { display: flex; }
-
-/* Landing */
-#screen-landing { align-items: center; justify-content: center; padding: 24px; background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.18) 0%, transparent 70%), var(--bg); }
-.landing-logo { font-size: 52px; margin-bottom: 12px; }
-.landing-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 40px; line-height: 1.4; }
-.btn-row { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
-.btn-land { padding: 16px; border-radius: var(--r); border: none; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; }
-.btn-land.student { background: var(--sky); color: #fff; box-shadow: 0 4px 20px rgba(59,130,246,0.35); }
-.btn-land.teacher { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-
-/* Header & UI Components */
-.header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
-.back-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; }
-.rt-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--mint); background: rgba(16,185,129,0.1); padding: 3px 8px; border-radius: 20px; }
-.rt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); animation: blink 1.5s infinite; }
-@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-.gps-bar { margin: 16px; border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 12px; border: 1.5px solid var(--border); background: var(--card); }
-.gps-bar.inside { background: rgba(16,185,129,0.1); border-color: var(--mint); }
-.gps-bar.outside { background: rgba(239,68,68,0.08); border-color: var(--danger); }
-.gps-dist { font-family: 'IBM Plex Mono', monospace; font-size: 13px; text-align: right; }
-.gps-dist .big { font-size: 22px; font-weight: 700; }
-
-.session-off { margin: 0 16px; background: rgba(245,158,11,0.1); border: 1.5px solid var(--warn); border-radius: var(--r); padding: 14px 16px; font-size: 14px; color: var(--warn); text-align: center; display: none; }
-
-.card { margin: 12px 16px; background: var(--panel); border-radius: var(--r); border: 1px solid var(--border); padding: 20px; }
-.id-input-row { display: flex; gap: 8px; margin-top: 8px; }
-.id-input { flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 16px; outline: none; }
-.btn-search { padding: 12px 16px; border-radius: 8px; border: none; background: var(--sky); color: #fff; cursor: pointer; }
-
-.stu-preview { display: none; margin-top: 16px; background: var(--card); border-radius: 8px; padding: 16px; border: 1.5px solid var(--border); }
-.stu-preview.found { border-color: var(--sky); }
-.stu-preview.not-found { border-color: var(--danger); }
-
-.btn-checkin { width: 100%; margin-top: 16px; padding: 16px; border-radius: 10px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: var(--card); color: var(--muted); }
-.btn-checkin.enabled { background: var(--mint); color: #fff; box-shadow: 0 4px 20px rgba(16,185,129,0.35); }
-
-/* Teacher Tabs & Lists */
-.tab-bar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); }
-.tab-btn { flex: 1; padding: 12px; background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
-.tab-btn.active { color: var(--skylt); border-bottom-color: var(--sky); }
-.tab-content { display: none; padding: 16px; }
-.tab-content.active { display: block; }
-
-.toggle-switch { position: relative; width: 54px; height: 28px; }
-.toggle-switch input { display: none; }
-.toggle-switch label { position: absolute; inset: 0; background: var(--card); border-radius: 14px; cursor: pointer; border: 1.5px solid var(--border); }
-.toggle-switch label::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: 0.3s; }
-.toggle-switch input:checked + label { background: var(--mint); border-color: var(--mint); }
-.toggle-switch input:checked + label::after { transform: translateX(26px); background: #fff; }
-
-.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.cfg-input { padding: 10px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; width: 100%; outline: none; }
-
-.stu-row, .att-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
-.stu-row div, .att-row div { flex: 1; }
-.btn-del { background: none; border: none; color: var(--muted); cursor: pointer; }
-.btn-del:hover { color: var(--danger); }
-
-.att-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.att-status.present { background: var(--mint); }
-.att-status.absent { background: var(--danger); }
-
-.log-stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-.stat-chip { background: var(--card); border-radius: 8px; padding: 12px; text-align: center; }
-.stat-val { font-size: 20px; font-weight: 700; }
-
-/* Overlays & Modals */
-.overlay { display: none; position: fixed; inset: 0; background: rgba(10,22,40,0.9); z-index: 300; align-items: center; justify-content: center; padding: 24px; }
-.overlay.show { display: flex; }
-.box { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 340px; width: 100%; }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1E3A5F; color: #fff; padding: 12px 20px; border-radius: 30px; font-size: 14px; transition: 0.3s; z-index: 999; opacity: 0; }
-.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --mint: #10b981; --danger: #ef4444; --sky: #3b82f6; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+  .container { max-width: 500px; margin: 0 auto; }
+  .card { background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  input, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 6px; border: 1px solid #475569; box-sizing: border-box; font-size: 16px; }
+  input { background: #334155; color: white; }
+  button { background: var(--sky); color: white; font-weight: bold; cursor: pointer; border: none; }
+  .btn-disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+  .status { font-weight: bold; padding: 10px; border-radius: 6px; text-align: center; margin-top: 10px; }
+  .inside { background: rgba(16,185,129,0.2); color: var(--mint); border: 1px solid var(--mint); }
+  .outside { background: rgba(239,68,68,0.2); color: var(--danger); border: 1px solid var(--danger); }
 </style>
 </head>
 <body>
 
-<div class="overlay" id="loadingScreen" style="display: flex;">
-  <div style="text-align: center; color: var(--muted);">กำลังโหลดระบบความปลอดภัย...</div>
+<div class="container">
+  
+  <div id="teacher-panel" class="card">
+    <h2>🔐 หลังบ้านอาจารย์ (ตึก 4)</h2>
+    <p style="font-size:13px; color:#94a3b8;">ใส่พิกัดตึก 7 แล้วกดสร้างลิงก์ เพื่อส่งให้เด็กใน LINE</p>
+    
+    <label>กรอก ละติจูด ตึก 7</label>
+    <input type="number" id="t-lat" step="0.000001" placeholder="เช่น 13.968250">
+    <label>กรอก ลองจิจูด ตึก 7</label>
+    <input type="number" id="t-lng" step="0.000001" placeholder="เช่น 100.589140">
+    
+    <button style="background:var(--mint);" onclick="generateLink()">🔗 1. สร้างลิงก์เช็คชื่อส่งให้เด็ก</button>
+    
+    <div id="link-result" style="margin-top:15px; display:none;">
+      <p style="font-size:12px; color:var(--mint);">ส่งลิงก์ด้านล่างนี้ให้เด็กกดเรียนในตึก 7:</p>
+      <input type="text" id="generated-url" readonly onclick="this.select()">
+    </div>
+  </div>
+
+  <div id="student-panel" class="card" style="border-top: 4px solid var(--sky); margin-top:30px;">
+    <h2>🎓 ฝั่งนักศึกษา (เปิดลิงก์ที่อาจารย์ส่งมา)</h2>
+    <div id="target-ui" style="font-size:14px; color:#94a3b8; margin-bottom:10px;">
+      พิกัดเป้าหมายตึก 7: รอรับลิงก์จากอาจารย์...
+    </div>
+    <div id="geo-status" class="status outside">❌ ยังไม่มีการตั้งค่าพิกัดเข้ามา</div>
+    
+    <input type="text" id="stu-id" placeholder="รหัสนักศึกษา 10 หลัก">
+    <button id="btn-submit" class="btn-disabled" disabled onclick="alert('เช็คชื่อสำเร็จ!')">📌 ยืนยันพิกัดและเช็คชื่อ</button>
+  </div>
+
 </div>
-
-<div class="screen" id="screen-landing">
-  <div class="landing-logo">🦷</div>
-  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบเช็คชื่อออนไลน์ป้องกันการโกง</span></div>
-  <div class="btn-row">
-    <button class="btn-land student" onclick="goStudent()">🎓 นักศึกษาเข้าเช็คชื่อ</button>
-    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมอาจารย์</button>
-  </div>
-</div>
-
-<div class="screen" id="screen-student">
-  <div class="header">
-    <button class="back-btn" onclick="goLanding()">←</button>
-    <div><strong>เช็คชื่อระบุพิกัดเข้าเรียน</strong></div>
-    <div class="rt-badge"><div class="rt-dot"></div>Live</div>
-  </div>
-
-  <div class="session-off" id="sessionOffBanner">⚠️ ขาดเรียน / อาจารย์ยังไม่เปิดคลาสเรียนในขณะนี้</div>
-
-  <div class="gps-bar" id="gpsBar">
-    <div style="font-size:24px;">📡</div>
-    <div style="flex:1;">
-      <strong id="gpsStatusText">กำลังตรวจสอบพิกัดความปลอดภัย...</strong>
-      <div id="gpsCoordText" style="font-size:11px; color:var(--muted)">รอสัญญาณ GPS จากดาวเทียม</div>
-    </div>
-    <div class="gps-dist">
-      <div class="big" id="gpsDistBig">—</div>
-      <div style="font-size:10px; color:var(--muted)">เมตร</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div style="font-size:12px; color:var(--muted)">ป้อนรหัสนักศึกษาเพื่อตรวจสอบชื่อ</div>
-    <div class="id-input-row">
-      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 10 หลัก" inputmode="numeric" />
-      <button class="btn-search" onclick="searchStudent()">🔍 ค้นหา</button>
-    </div>
-
-    <div class="stu-preview" id="stuPreview">
-      <div id="previewName" style="font-size:18px; font-weight:700;">—</div>
-      <div id="previewMeta" style="font-size:12px; color:var(--muted)">—</div>
-    </div>
-
-    <button class="btn-checkin" id="btnCheckin" disabled onclick="doCheckin()">กรุณากรอกรหัสและเปิด GPS ให้เรียบร้อย</button>
-  </div>
-</div>
-
-<div class="screen" id="screen-teacher">
-  <div class="header">
-    <div><strong>แผงควบคุมเบื้องหลัง (อาจารย์)</strong></div>
-    <button class="back-btn" onclick="goLanding()">ออกจากระบบ</button>
-  </div>
-
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('session')">🔴 ควบคุมคาบเรียน</button>
-    <button class="tab-btn" onclick="switchTab('students')">👥 รายชื่อถาวร</button>
-    <button class="tab-btn" onclick="switchTab('attendance')">📋 สรุปการเข้าเรียน</button>
-  </div>
-
-  <div class="tab-content active" id="tab-session">
-    <div class="card" style="margin:0; display:flex; align-items:center; justify-content:space-between;">
-      <div>
-        <strong>สถานะการเปิดให้เช็คชื่อ (คุมระยะไกล)</strong>
-        <div id="sessionStatusText" style="font-size:12px; color:var(--muted)">ปิดระบบคลาสเรียนอยู่</div>
-      </div>
-      <div class="toggle-switch">
-        <input type="checkbox" id="sessionToggle" onchange="toggleSession()" />
-        <label for="sessionToggle"></label>
-      </div>
-    </div>
-
-    <div class="card" style="margin:14px 0 0 0;">
-      <strong>ตั้งค่าพิกัดห้องเรียนจริง (Geo-fencing)</strong>
-      <div class="cfg-grid">
-        <div><label style="font-size:11px;color:var(--muted)">ตึก/อาคาร</label><input class="cfg-input" id="cfgBuilding" placeholder="เช่น ตึกทันตแพทย์ 2" /></div>
-        <div><label style="font-size:11px;color:var(--muted)">ห้องเรียน</label><input class="cfg-input" id="cfgRoom" placeholder="ห้อง 301" /></div>
-        <div><label style="font-size:11px;color:var(--muted)">ละติจูด (Latitude)</label><input class="cfg-input" id="cfgLat" type="number" step="0.000001" placeholder="13.756" /></div>
-        <div><label style="font-size:11px;color:var(--muted)">ลองจิจูด (Longitude)</label><input class="cfg-input" id="cfgLng" type="number" step="0.000001" placeholder="100.50" /></div>
-        <div><label style="font-size:11px;color:var(--muted)">รัศมีอนุญาต (เมตร)</label><input class="cfg-input" id="cfgRadius" type="number" value="50" /></div>
-        <div style="display:flex; align-items:flex-end; gap:5px;">
-          <button class="cfg-input" style="background:var(--sky); color:#fff; border:none; font-weight:bold; cursor:pointer;" onclick="saveGPSConfig()">บันทึกพิกัด</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab-students">
-    <div class="card" style="margin:0;">
-      <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">อัปโหลดไฟล์ CSV รายชื่อคลาสเรียน (ทำแค่ครั้งเดียวระบบจำตลอดไป)</div>
-      <input type="file" id="csvFile" accept=".csv" onchange="parseCSV(event)" style="color:var(--muted); font-size:13px;" />
-    </div>
-    <div class="card" style="margin:14px 0 0 0;">
-      <strong>ฐานข้อมูลรายชื่อนักศึกษา (<span id="stuCount">0</span> คน)</strong>
-      <div id="studentListEl" style="margin-top:10px; max-height:250px; overflow-y:auto;"></div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab-attendance">
-    <div style="display:flex; gap:10px; margin-bottom:12px;">
-      <input type="date" id="attDate" onchange="onDateChange()" class="cfg-input" style="flex:1;" />
-      <button onclick="exportCSV()" class="cfg-input" style="width:auto; background:var(--sky); color:#fff; border:none; padding:0 15px; cursor:pointer;">ดาวน์โหลดรายงาน CSV</button>
-    </div>
-    <div class="log-stat-row">
-      <div class="stat-chip"><div class="stat-val" id="statTotal" style="color:var(--skylt)">0</div><div style="font-size:11px;color:var(--muted)">ทั้งหมด</div></div>
-      <div class="stat-chip"><div class="stat-val" id="statPresent" style="color:var(--mint)">0</div><div style="font-size:11px;color:var(--muted)">มาเรียน</div></div>
-      <div class="stat-chip"><div class="stat-val" id="statAbsent" style="color:var(--danger)">0</div><div style="font-size:11px;color:var(--muted)">ขาดเรียน</div></div>
-    </div>
-    <div id="attListEl" style="max-height:300px; overflow-y:auto;"></div>
-  </div>
-</div>
-
-<div class="overlay" id="loginOverlay">
-  <div class="box">
-    <strong style="font-size:18px; display:block; margin-bottom:10px;">🔐 เข้าสู่ระบบควบคุมเบื้องหลัง</strong>
-    <input class="id-input" id="loginPass" type="password" placeholder="รหัสผ่านอาจารย์" style="width:100%; margin-bottom:12px;" />
-    <button class="btn-search" style="width:100%;" onclick="doLogin()">เข้าสู่แผงควบคุม</button>
-    <button class="btn-search" style="width:100%; background:none; color:var(--muted); margin-top:5px;" onclick="closeLogin()">ยกเลิก</button>
-  </div>
-</div>
-
-<div class="overlay" id="statusModal">
-  <div class="box" style="text-align:center;">
-    <div id="modalIcon" style="font-size:48px; margin-bottom:10px;">✅</div>
-    <strong id="modalTitle" style="font-size:20px; display:block; margin-bottom:8px;">เช็คชื่อสำเร็จ</strong>
-    <div id="modalDetail" style="font-size:14px; color:var(--muted); margin-bottom:20px;">ระบบบันทึกเวลาของคุณแล้ว</div>
-    <button class="btn-search" style="width:100%; background:var(--sky)" onclick="closeModal()">ตกลง</button>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
 
 <script>
-const TEACHER_PASS = "teacher1234"; // รหัสเข้าหลังบ้านของอาจารย์
-const COURSE_ID    = "ANA224";
+let targetLat = null, targetLng = null, targetRad = 100;
 
-let db, fbReady = false;
-let students = {}; let attendance = {}; let roomConfig = {}; let sessionOpen = false;
-let userLat = null; let userLng = null; let userAcc = null; let isInsideRoom = false; let foundStudent = null; let gpsWatchId = null;
-let userIP = "0.0.0.0";
-
-// 🛡️ ป้องกันการใช้ 1 เครื่องเช็คชื่อซ้ำๆ ให้เพื่อน (Device Fingerprint)
-function getDeviceFingerprint() {
-  return "DEV-" + Math.abs((window.navigator.userAgent + window.screen.width + window.screen.height).split("").reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-}
-const currentDeviceId = getDeviceFingerprint();
-
-// 🌐 โหลด IP แอดเดรสของนักศึกษาเพื่อใช้ล็อกความปลอดภัยชั้นที่สอง
-async function fetchUserIP() {
-  try {
-    const res = await fetch("https://api.ipify.org?format=json");
-    const data = await res.json();
-    userIP = data.ip;
-  } catch(e) { console.log("IP fetch failed, fallback active"); }
-}
-
-document.addEventListener("firebaseReady", async () => {
-  db = window._db; fbReady = true;
-  await fetchUserIP();
-  document.getElementById("loadingScreen").style.display = "none";
-  showScreen("landing");
-  listenConfig(); listenStudents();
-});
-
-function showScreen(name) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById("screen-" + name).classList.add("active");
-}
-function goLanding() { if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId); showScreen("landing"); }
-function goStudent() { showScreen("student"); startGPSWatch(); }
-function showLogin() { document.getElementById("loginOverlay").classList.add("show"); }
-function closeLogin() { document.getElementById("loginOverlay").classList.remove("show"); }
-function doLogin() {
-  if(document.getElementById("loginPass").value === TEACHER_PASS) {
-    closeLogin(); document.getElementById("loginPass").value=""; showScreen("teacher");
-    const d = document.getElementById("attDate"); if(!d.value) d.value = todayKey();
-    listenAttendanceByDate(d.value);
-  } else { alert("รหัสผ่านไม่ถูกต้อง"); }
-}
-function switchTab(name) {
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-  document.getElementById("tab-" + name).classList.add("active"); event.currentTarget.classList.add("active");
-}
-
-/* FIREBASE REALTIME LISTENERS */
-function listenConfig() {
-  window._onSnapshot(window._doc(db, COURSE_ID, "config"), snap => {
-    if (!snap.exists()) return; const d = snap.data();
-    roomConfig = { building: d.building||"", room: d.room||"", lat: d.lat||null, lng: d.lng||null, radius: d.radius||50 };
-    sessionOpen = d.sessionOpen || false;
-    updateUIElements();
-  });
-}
-function listenStudents() {
-  window._onSnapshot(window._doc(db, COURSE_ID, "students"), snap => {
-    students = snap.exists() ? snap.data() : {};
-    document.getElementById("stuCount").innerText = Object.keys(students).length;
-    renderStudentList(); renderAttendance();
-  });
-}
-let attUnsub = null;
-function listenAttendanceByDate(dateStr) {
-  if (attUnsub) attUnsub();
-  attUnsub = window._onSnapshot(window._doc(db, COURSE_ID, "attendance_" + dateStr), snap => {
-    attendance = snap.exists() ? snap.data() : {};
-    renderAttendance();
-  });
-}
-function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-
-/* GEOLOCATION (GEO-FENCING) CONTROL */
-function startGPSWatch() {
-  if (!navigator.geolocation) { updateGPSUI("error", "อุปกรณ์ไม่รองรับระบบพิกัด"); return; }
-  gpsWatchId = navigator.geolocation.watchPosition(
-    pos => {
-      userLat = pos.coords.latitude; userLng = pos.coords.longitude; userAcc = pos.coords.accuracy;
-      evaluateGeoFence();
-    },
-    err => { updateGPSUI("error", "กรุณาเปิดสิทธิ์แชร์ตำแหน่งที่ตั้ง (GPS)"); },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-  );
-}
-
-function evaluateGeoFence() {
-  if (!roomConfig.lat || !roomConfig.lng) { updateGPSUI("error", "อาจารย์ยังไม่กำหนดพิกัดห้องเรียน"); return; }
-  // คำนวณสูตรระยะทางห่างจากห้องเรียนจริง (หน่วยเมตร)
-  const R = 6371e3; const p1 = userLat * Math.PI/180; const p2 = roomConfig.lat * Math.PI/180;
-  const dLat = (roomConfig.lat-userLat) * Math.PI/180; const dLng = (roomConfig.lng-userLng) * Math.PI/180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng/2) * Math.sin(dLng/2);
-  const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  
-  document.getElementById("gpsDistBig").innerText = Math.round(dist);
-  document.getElementById("gpsCoordText").innerText = `พิกัดปัจจุบัน: ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (คลาดเคลื่อน ±${Math.round(userAcc)}ม.)`;
-
-  if (dist <= roomConfig.radius) {
-    isInsideRoom = true; updateGPSUI("inside", `ตรวจพบพิกัดอยู่ในบริเวณชั้นเรียน (${roomConfig.building} ${roomConfig.room})`);
-  } else {
-    isInsideRoom = false; updateGPSUI("outside", "คุณอยู่ไกลเกินกว่าขอบเขตห้องเรียนจริง");
-  }
-  validateCheckinButton();
-}
-
-function updateGPSUI(status, text) {
-  const bar = document.getElementById("gpsBar"); const txt = document.getElementById("gpsStatusText");
-  bar.className = "gps-bar " + (status === "inside" ? "inside" : "outside"); txt.innerText = text;
-}
-
-function updateUIElements() {
-  document.getElementById("sessionToggle").checked = sessionOpen;
-  document.getElementById("sessionStatusText").innerText = sessionOpen ? "🟢 เปิดรับการเช็คชื่ออยู่" : "🔴 ปิดระบบชั้นเรียนอยู่";
-  document.getElementById("sessionOffBanner").style.display = sessionOpen ? "none" : "block";
-  document.getElementById("cfgBuilding").value = roomConfig.building;
-  document.getElementById("cfgRoom").value = roomConfig.room;
-  document.getElementById("cfgLat").value = roomConfig.lat;
-  document.getElementById("cfgLng").value = roomConfig.lng;
-  document.getElementById("cfgRadius").value = roomConfig.radius;
-  if(userLat !== null) evaluateGeoFence(); else validateCheckinButton();
-}
-
-function searchStudent() {
-  const id = document.getElementById("stuIdInput").value.trim();
-  const pre = document.getElementById("stuPreview");
-  if(!id || !students[id]) {
-    pre.style.display = "block"; pre.className="stu-preview not-found";
-    document.getElementById("previewName").innerText = "ไม่พบรายชื่อในคลาสเรียนนี้";
-    document.getElementById("previewMeta").innerText = "ติดต่ออาจารย์ผู้สอนเพื่อเพิ่มชื่อ"; foundStudent = null;
-  } else {
-    pre.style.display = "block"; pre.className="stu-preview found";
-    document.getElementById("previewName").innerText = students[id].name;
-    document.getElementById("previewMeta").innerText = `รหัส: ${id} ${students[id].group ? '· กลุ่ม '+students[id].group : ''}`;
-    foundStudent = { id: id, ...students[id] };
-  }
-  validateCheckinButton();
-}
-
-function validateCheckinButton() {
-  const btn = document.getElementById("btnCheckin");
-  if (!sessionOpen) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดให้เข้าเช็คชื่อ"; btn.className = "btn-checkin"; }
-  else if (!isInsideRoom) { btn.disabled = true; btn.innerText = "ระบบล็อก! คุณไม่ได้อยู่ในบริเวณห้องเรียน"; btn.className = "btn-checkin"; }
-  else if (!foundStudent) { btn.disabled = true; btn.innerText = "กรุณากรอกรหัสนักศึกษาที่ถูกต้อง"; btn.className = "btn-checkin"; }
-  else { btn.disabled = false; btn.innerText = "🟢 ยืนยันพิกัดและเช็คชื่อเข้าเรียน"; btn.className = "btn-checkin enabled"; }
-}
-
-/* ANTI-CHEAT & CHECKIN PROCESS (ระบบล็อกไอพี + อุปกรณ์) */
-async function doCheckin() {
-  if (!fbReady || !foundStudent || !isInsideRoom || !sessionOpen) return;
-  const btn = document.getElementById("btnCheckin"); btn.disabled = true; btn.innerText = "กำลังตรวจสอบมาตรการความปลอดภัย...";
-  
-  const tKey = todayKey(); const attRef = window._doc(db, COURSE_ID, "attendance_" + tKey);
-  try {
-    const snap = await window._getDoc(attRef); const currentAtt = snap.exists() ? snap.data() : {};
+// ตอนโหลดหน้าจอ: ตรวจสอบว่าลิงก์มีพิกัดพ่วงมาไหม
+window.onload = function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('lat') && urlParams.has('lng')) {
+    targetLat = parseFloat(urlParams.get('lat'));
+    targetLng = parseFloat(urlParams.get('lng'));
     
-    // 🛡️ เช็คว่ารหัสนี้นั่งเช็คไปแล้วหรือยัง
-    if (currentAtt[foundStudent.id]) {
-      showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return;
-    }
-    // 🛡️ มาตรการเด็ดขาด: 1 เครื่อง หรือ 1 IP ห้ามกดแทนเพื่อนคนอื่นเด็ดขาด!
-    for (const id in currentAtt) {
-      if (currentAtt[id].deviceId === currentDeviceId || currentAtt[id].ip === userIP) {
-        showModal("❌", "ระบบบล็อกการทุจริต", `มือถือหรือเครือข่ายอินเทอร์เน็ตเครื่องนี้ ได้ใช้เช็คชื่อให้เพื่อนรหัส ${id} ไปแล้ว! ห้ามเช็คชื่อแทนกันเด็ดขาด`);
-        validateCheckinButton(); return;
-      }
-    }
-
-    currentAtt[foundStudent.id] = {
-      name: foundStudent.name, group: foundStudent.group||"",
-      time: new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }),
-      lat: userLat, lng: userLng, deviceId: currentDeviceId, ip: userIP
-    };
+    document.getElementById("target-ui").innerHTML = `📍 พิกัดเป้าหมายตึก 7 จากอาจารย์:<br>Lat: ${targetLat}, Lng: ${targetLng}`;
+    document.getElementById("teacher-panel").style.display = "none"; // ซ่อนเมนูอาจารย์ถ้าเด็กเปิด
     
-    await window._setDoc(attRef, currentAtt);
-    showModal("✅", "เช็คชื่อสำเร็จ 🎉", "ระบบล็อกพิกัดภูมิศาสตร์และ IP ของคุณเรียบร้อยแล้ว");
-    document.getElementById("stuIdInput").value = ""; document.getElementById("stuPreview").style.display = "none"; foundStudent = null;
-  } catch(e) { showToast("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์คลาวด์"); }
-  validateCheckinButton();
+    startGPS(); // เริ่มจับพิกัดเด็ก
+  }
+};
+
+// อาจารย์กดสร้างลิงก์ส่งให้เด็ก
+function generateLink() {
+  const lat = document.getElementById("t-lat").value.trim();
+  const lng = document.getElementById("t-lng").value.trim();
+  if(!lat || !lng) { alert("กรุณากรอกพิกัดตึก 7 ก่อนครับ"); return; }
+  
+  // สร้าง URL แบบพ่วงพิกัดไปในลิงก์
+  const currentUrl = window.location.href.split('?')[0];
+  const newUrl = `${currentUrl}?lat=${lat}&lng=${lng}`;
+  
+  document.getElementById("generated-url").value = newUrl;
+  document.getElementById("link-result").style.display = "block";
 }
 
-/* TEACHER PANEL ACTIONS */
-async function toggleSession() {
-  sessionOpen = document.getElementById("sessionToggle").checked;
-  await window._setDoc(window._doc(db, COURSE_ID, "config"), { sessionOpen: sessionOpen }, { merge: true });
-  showToast(sessionOpen ? "เปิดชั้นเรียนออนไลน์แล้ว" : "ปิดชั้นเรียนแล้ว");
+// ระบบดาวเทียมบนมือถือเด็ก
+function startGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById("geo-status").innerText = "มือถือไม่รองรับ GPS";
+    return;
+  }
+  document.getElementById("geo-status").innerText = "📡 กำลังคำนวณระยะห่างดาวเทียม...";
+  
+  navigator.geolocation.watchPosition((pos) => {
+    const userLat = pos.coords.latitude;
+    const userLng = pos.coords.longitude;
+    
+    // คำนวватьระยะห่างระหว่างเด็ก กับ พิกัดที่ฝังมาในลิงก์
+    const R = 6371e3;
+    const dLat = (targetLat - userLat) * Math.PI / 180;
+    const dLng = (targetLng - userLng) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(userLat * Math.PI / 180) * Math.cos(targetLat * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+
+    const statusEl = document.getElementById("geo-status");
+    const btn = document.getElementById("btn-submit");
+
+    if (distance <= targetRad) {
+      statusEl.className = "status inside";
+      statusEl.innerText = `✅ คุณถึงตึก 7 แล้ว (ห่าง ${Math.round(distance)} เมตร)`;
+      btn.disabled = false; btn.className = "";
+    } else {
+      statusEl.className = "status outside";
+      statusEl.innerText = `❌ คุณอยู่ห่างเกินไป (${Math.round(distance)} เมตร) ล็อกปุ่ม!`;
+      btn.disabled = true; btn.className = "btn-disabled";
+    }
+  }, (err) => {
+    document.getElementById("geo-status").innerText = "❌ มือถือปฏิเสธการเข้าถึง GPS";
+  }, { enableHighAccuracy: true });
 }
-async function saveGPSConfig() {
-  const b = document.getElementById("cfgBuilding").value; const r = document.getElementById("cfgRoom").value;
-  const lat = parseFloat(document.getElementById("cfgLat").value); const lng = parseFloat(document.getElementById("cfgLng").value);
-  const rad = parseInt(document.getElementById("cfgRadius").value) || 50;
-  if(!b || !lat || !lng) { showToast("ข้อมูลพิกัดภูมิศาสตร์ไม่ครบถ้วน"); return; }
-  await window._setDoc(window._doc(db, COURSE_ID, "config"), { building:b, room:r, lat:lat, lng:lng, radius:rad }, { merge: true });
-  showToast("อัปเดตขอบเขตพื้นที่ห้องเรียน (Geo-fencing) เรียบร้อย");
-}
-function parseCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const r = new FileReader(); r.onload = async function(evt) {
-    const lines = evt.target.result.split('\n');
-    lines.forEach(line => {
-      const p = line.split(',');
-      if(p.length >= 2 && p[0].trim() && p[0].trim() !== "รหัสนักศึกษา") { students[p[0].trim()] = { name: p[1].trim(), group: p[2]?p[2].trim():"" }; }
-    });
-    await window._setDoc(window._doc(db, COURSE_ID, "students"), students); showToast("อัปโหลดรายชื่อถาวรเข้าฐานข้อมูลเรียบร้อย");
-  };
-  r.readAsText(file, 'UTF-8');
-}
-function renderStudentList() {
-  const el = document.getElementById("studentListEl"); el.innerHTML = "";
-  Object.keys(students).sort().forEach(id => {
-    const r = document.createElement("div"); r.className = "stu-row";
-    r.innerHTML = `<div><b>${id}</b> - ${students[id].name} ${students[id].group?'('+students[id].group+')':''}</div>`;
-    el.appendChild(r);
-  });
-}
-function renderAttendance() {
-  const el = document.getElementById("attListEl"); if(!el) return; el.innerHTML = "";
-  let present = 0; const total = Object.keys(students).length;
-  Object.keys(students).sort().forEach(id => {
-    const att = attendance[id]; const r = document.createElement("div"); r.className = "att-row";
-    if(att) { present++; r.innerHTML = `<div class="att-status present"></div><div><b>${id}</b> ${students[id].name}</div><div style="text-align:right; color:var(--mint)">${att.time} น.</div>`; }
-    else { r.innerHTML = `<div class="att-status absent"></div><div style="color:var(--muted)"><b>${id}</b> ${students[id].name}</div><div style="text-align:right; color:var(--danger)">ขาดเรียน</div>`; }
-    el.appendChild(r);
-  });
-  document.getElementById("statTotal").innerText = total; document.getElementById("statPresent").innerText = present; document.getElementById("statAbsent").innerText = total - present;
-}
-function onDateChange() { listenAttendanceByDate(document.getElementById("attDate").value); }
-function exportCSV() {
-  let csv = "\uFEFFรหัสนักศึกษา,ชื่อ,สถานะ,เวลา\n";
-  Object.keys(students).sort().forEach(id => { csv += `"${id}","${students[id].name}","${attendance[id]?'มาเรียน':'ขาด'}"\n`; });
-  const b = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(b);
-  const l = document.createElement("a"); l.href = url; l.download = `เช็คชื่อ_${document.getElementById("attDate").value}.csv`; l.click();
-}
-function showToast(m) { const t = document.getElementById("toast"); t.innerText = m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3000); }
-function showModal(i, t, d) { document.getElementById("modalIcon").innerText = i; document.getElementById("modalTitle").innerText = t; document.getElementById("modalDetail").innerText = d; document.getElementById("statusModal").classList.add("show"); }
-function closeModal() { document.getElementById("statusModal").classList.remove("show"); }
 </script>
 </body>
 </html>
