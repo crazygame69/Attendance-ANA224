@@ -3,193 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ANA224 — ระบบเช็คชื่อออนไลน์ (ป้องกันการทุจริต 100%)</title>
+<title>ANA224 — ระบบเช็คชื่อออนไลน์ (ล็อกพิกัด + ล็อก IP 1:1)</title>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection }
-  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* ══════════════════════════════════════════════
-   🔥 บังคับใส่ตรงนี้: FIREBASE CONFIG ของอาจารย์
-══════════════════════════════════════════════ */
+// 🔥 แปะ Firebase Config ของอาจารย์ตรงนี้
 const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
   messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  appId: "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+const db = getFirestore(app);
 
-window._db = db; window._doc = doc; window._setDoc = setDoc; window._getDoc = getDoc;
-window._onSnapshot = onSnapshot; window._collection = collection;
-window._firebaseReady = true;
-document.dispatchEvent(new Event("firebaseReady"));
+window.db = db; window.doc = doc; window.setDoc = setDoc; window.getDoc = getDoc; window.onSnapshot = onSnapshot;
+document.dispatchEvent(new Event("dbReady"));
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-
-:root {
-  --bg:      #0A1628;
-  --panel:   #0F2044;
-  --card:    #162952;
-  --border:  rgba(100,160,255,0.15);
-  --sky:     #3B82F6;
-  --skylt:   #60A5FA;
-  --mint:    #10B981;
-  --danger:  #EF4444;
-  --warn:    #F59E0B;
-  --text:    #E8EFF9;
-  --muted:   #7A92B4;
-  --r:       10px;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
-
-/* Screens */
-.screen { display: none; min-height: 100vh; flex-direction: column; }
-.screen.active { display: flex; }
-
-/* Landing */
-#screen-landing { align-items: center; justify-content: center; padding: 24px; background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.18) 0%, transparent 70%), var(--bg); }
-.landing-logo { font-size: 52px; margin-bottom: 12px; }
-.landing-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 40px; line-height: 1.4; }
-.btn-row { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
-.btn-land { padding: 16px; border-radius: var(--r); border: none; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; }
-.btn-land.student { background: var(--sky); color: #fff; box-shadow: 0 4px 20px rgba(59,130,246,0.35); }
-.btn-land.teacher { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-
-/* Header & UI Components */
-.header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
-.back-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; }
-.rt-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--mint); background: rgba(16,185,129,0.1); padding: 3px 8px; border-radius: 20px; }
-.rt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); animation: blink 1.5s infinite; }
-@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-.gps-bar { margin: 16px; border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 12px; border: 1.5px solid var(--border); background: var(--card); }
-.gps-bar.inside { background: rgba(16,185,129,0.1); border-color: var(--mint); }
-.gps-bar.outside { background: rgba(239,68,68,0.08); border-color: var(--danger); }
-.gps-dist { font-family: 'IBM Plex Mono', monospace; font-size: 13px; text-align: right; }
-.gps-dist .big { font-size: 22px; font-weight: 700; }
-
-.session-off { margin: 0 16px; background: rgba(245,158,11,0.1); border: 1.5px solid var(--warn); border-radius: var(--r); padding: 14px 16px; font-size: 14px; color: var(--warn); text-align: center; display: none; }
-
-.card { margin: 12px 16px; background: var(--panel); border-radius: var(--r); border: 1px solid var(--border); padding: 20px; }
-.id-input-row { display: flex; gap: 8px; margin-top: 8px; }
-.id-input { flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 16px; outline: none; }
-.btn-search { padding: 12px 16px; border-radius: 8px; border: none; background: var(--sky); color: #fff; cursor: pointer; }
-
-.stu-preview { display: none; margin-top: 16px; background: var(--card); border-radius: 8px; padding: 16px; border: 1.5px solid var(--border); }
-.stu-preview.found { border-color: var(--sky); }
-.stu-preview.not-found { border-color: var(--danger); }
-
-.btn-checkin { width: 100%; margin-top: 16px; padding: 16px; border-radius: 10px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: var(--card); color: var(--muted); }
-.btn-checkin.enabled { background: var(--mint); color: #fff; box-shadow: 0 4px 20px rgba(16,185,129,0.35); }
-
-/* Teacher Tabs */
-.tab-bar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); }
-.tab-btn { flex: 1; padding: 12px; background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
-.tab-btn.active { color: var(--skylt); border-bottom-color: var(--sky); }
-.tab-content { display: none; padding: 16px; }
-.tab-content.active { display: block; }
-
-.toggle-switch { position: relative; width: 54px; height: 28px; }
-.toggle-switch input { display: none; }
-.toggle-switch label { position: absolute; inset: 0; background: var(--card); border-radius: 14px; cursor: pointer; border: 1.5px solid var(--border); }
-.toggle-switch label::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: 0.3s; }
-.toggle-switch input:checked + label { background: var(--mint); border-color: var(--mint); }
-.toggle-switch input:checked + label::after { transform: translateX(26px); background: #fff; }
-
-.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.cfg-input { padding: 10px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; width: 100%; outline: none; }
-
-.stu-row, .att-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
-.stu-row div, .att-row div { flex: 1; }
-
-.att-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.att-status.present { background: var(--mint); }
-.att-status.absent { background: var(--danger); }
-
-.log-stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-.stat-chip { background: var(--card); border-radius: 8px; padding: 12px; text-align: center; }
-.stat-val { font-size: 20px; font-weight: 700; }
-
-/* Overlays & Modals */
-.overlay { display: none; position: fixed; inset: 0; background: rgba(10,22,40,0.9); z-index: 300; align-items: center; justify-content: center; padding: 24px; }
-.overlay.show { display: flex; }
-.box { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 340px; width: 100%; }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1E3A5F; color: #fff; padding: 12px 20px; border-radius: 30px; font-size: 14px; transition: 0.3s; z-index: 999; opacity: 0; }
-.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --mint: #10b981; --danger: #ef4444; --sky: #3b82f6; --warn: #f59e0b; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+  .container { max-width: 500px; margin: 0 auto; }
+  .card { background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  input, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 6px; border: 1px solid #475569; box-sizing: border-box; font-size: 16px; }
+  input { background: #334155; color: white; }
+  button { background: var(--sky); color: white; font-weight: bold; cursor: pointer; border: none; }
+  .btn-disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+  .status { font-weight: bold; padding: 10px; border-radius: 6px; text-align: center; margin-top: 10px; }
+  .inside { background: rgba(16,185,129,0.2); color: var(--mint); border: 1px solid var(--mint); }
+  .outside { background: rgba(239,68,68,0.2); color: var(--danger); border: 1px solid var(--danger); }
+  .nav-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+  .tab { flex: 1; background: #334155; text-align: center; padding: 10px; border-radius: 6px; cursor: pointer; }
+  .tab.active { background: var(--sky); }
+  .screen { display: none; }
+  .screen.active { display: block; }
 </style>
 </head>
 <body>
 
-<div class="overlay" id="loadingScreen" style="display: flex;">
-  <div style="text-align: center; color: var(--muted);">กำลังเชื่อมต่อเกราะป้องกันความปลอดภัยเรียลไทม์...</div>
-</div>
-
-<div class="screen" id="screen-landing">
-  <div class="landing-logo">🦷</div>
-  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบล็อก IP และพิกัดข้ามตึกเรียน</span></div>
-  <div class="btn-row">
-    <button class="btn-land student" onclick="goStudent()">🎓 นักศึกษาเข้าเช็คชื่อ </button>
-    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมอาจารย์ </button>
-  </div>
-</div>
-
-<div class="screen" id="screen-student">
-  <div class="header">
-    <button class="back-btn" onclick="goLanding()">←</button>
-    <div><strong>เช็คชื่อระบุพิกัดเข้าเรียน</strong></div>
-    <div class="rt-badge"><div class="rt-dot"></div>Live</div>
+<div class="container">
+  <div class="nav-tabs">
+    <div class="tab active" id="t-stu" onclick="switchView('stu')">🎓 ฝั่งนักศึกษา (ตึก 7)</div>
+    <div class="tab" id="t-tea" onclick="switchView('tea')">🔐 หลังบ้านอาจารย์ (ตึก 4)</div>
   </div>
 
-  <div class="session-off" id="sessionOffBanner">⚠️ อาจารย์ยังไม่กดเปิดคลาสเรียนออนไลน์ในขณะนี้</div>
+  <div id="view-stu" class="screen active">
+    <h2>🎓 เช็คชื่อเข้าเรียน (ตึก 7)</h2>
+    <div class="card">
+      <p style="color: #94a3b8; font-size: 14px;">ระบบตรวจพิกัดดาวเทียม และล็อก IP ป้องกันการเช็คชื่อแทนกัน</p>
+      
+      <div id="stu-room-status" style="font-size: 14px; margin-bottom: 10px; color: #cbd5e1;">
+        กำลังโหลดพิกัดห้องเรียนจากอาจารย์...
+      </div>
 
-  <div class="gps-bar" id="gpsBar">
-    <div style="font-size:24px;">📡</div>
-    <div style="flex:1;">
-      <strong id="gpsStatusText">กำลังดึงพิกัดจากดาวเทียมบนมือถือ...</strong>
-      <div id="gpsCoordText" style="font-size:11px; color:var(--muted)">กำลังรอค่าพิกัดความปลอดภัยแบบ HTTPS</div>
-    </div>
-    <div class="gps-dist">
-      <div class="big" id="gpsDistBig">—</div>
-      <div style="font-size:10px; color:var(--muted)">เมตร</div>
+      <div id="geo-status" class="status outside">กำลังค้นหาสัญญาณ GPS ของคุณ...</div>
+      
+      <input type="text" id="stu-id" placeholder="กรอกรหัสนักศึกษา 10 หลัก" style="margin-top: 15px;">
+      <button id="btn-submit" class="btn-disabled" disabled onclick="studentCheckin()">📌 ยืนยันพิกัดและเช็คชื่อ</button>
     </div>
   </div>
 
-  <div class="card">
-    <div style="font-size:12px; color:var(--muted)">ป้อนรหัสนักศึกษาเพื่อตรวจสอบชื่อถาวร</div>
-    <div class="id-input-row">
-      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 10 หลัก" inputmode="numeric" />
-      <button class="btn-search" onclick="searchStudent()">🔍 ค้นหา</button>
-    </div>
-
-    <div class="stu-preview" id="stuPreview">
-      <div id="previewName" style="font-size:18px; font-weight:700;">—</div>
-      <div id="previewMeta" style="font-size:12px; color:var(--muted)">—</div>
-    </div>
-
-    <button class="btn-checkin" id="btnCheckin" disabled onclick="doCheckin()">กรุณากรอกรหัสและเปิดสิทธิ์ GPS บนมือถือ</button>
-  </div>
-</div>
-
-<div class="screen" id="screen-teacher">
-  <div class="header">
-    <div><strong>แผงควบคุมอาจารย์ (ตึก 4)</strong></div>
-    <button class="back-btn" onclick="goLanding()">ออกจากระบบ</button>
-  </div>
-
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('session')">🔴 ตั้งค่าล็อกพิกัดตึก </button>
-    <button class="tab-btn" onclick="switchTab('students')">👥 รายชื่อคลาสเรียน</button>
-    <button class="tab-btn" onclick="switchTab('attendance')">📋 สรุปรายวัน</button>
-  </div>
-
-  <div class="tab
+  <div id="view-tea" class="screen">
+    <h2>🔐 แผงควบคุมอาจารย์ (ตึก 4)</h2>
+    
+    <div class="card">
+      <h3>👥 1. อัปโหลดรายชื่อถาวร (ทำครั้งเดียวต้นเทอม)</h3>
+      <input type="file" id="csv-file" accept=".csv" onchange="uploadCSV(event)" style="background:none; border:none; padding:0;">
+      <p style="font-size:12px; color:#94a3b8; margin-top:5px;">ปัจจุบันมีรายชื่อในระบบ: <span id="student-count" style="color:var(--mint); font-weight:bold;">0</span> คน</p>
