@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ANA224 — ระบบเช็คชื่อออนไลน์ (บันทึก IP / ล็อกเครื่อง)</title>
+<title>ANA224 — ระบบเช็คชื่อออนไลน์ (ตั้งเวลาอัตโนมัติ)</title>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -108,7 +108,6 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 .btn-reset-dev { background: var(--sky); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
 .btn-delete-stu { background: var(--danger); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
 
-/* 🛠️ แก้ไขใหม่: ปรับปรุงโครงสร้างสี่เหลี่ยมผืนผ้า (Status Badge) ไม่สั้นไม่ยาวเกินไป */
 .att-status-badge {
   display: inline-block;
   padding: 5px 12px;
@@ -219,6 +218,24 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
     </div>
 
     <div class="card" style="margin:14px 0 0 0;">
+      <strong>🕒 ตั้งเวลา เปิด-ปิด ระบบอัตโนมัติ (เลือกใช้อย่างใดอย่างหนึ่ง)</strong>
+      <div class="cfg-grid" style="margin-top: 10px;">
+        <div>
+          <label style="font-size:11px;color:var(--muted)">เวลาเริ่มเปิดรับ (Start Time)</label>
+          <input class="cfg-input" id="cfgStartTime" type="time" />
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted)">เวลาปิดรับ (End Time)</label>
+          <input class="cfg-input" id="cfgEndTime" type="time" />
+        </div>
+        <div style="grid-column: span 2; text-align: right; margin-top: 5px;">
+          <button class="cfg-input" style="background:var(--sky); color:#fff; border:none; font-weight:bold; cursor:pointer; width: auto; padding: 8px 20px;" onclick="saveTimerConfig()">บันทึกเวลาเปิด-ปิด</button>
+          <button class="cfg-input" style="background:var(--danger); color:#fff; border:none; font-weight:bold; cursor:pointer; width: auto; padding: 8px 20px; margin-left:5px;" onclick="clearTimerConfig()">ยกเลิกการตั้งเวลา</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin:14px 0 0 0;">
       <strong>ตั้งค่าพิกัดห้องเรียนจริง (Geo-fencing)</strong>
       <div class="cfg-grid">
         <div><label style="font-size:11px;color:var(--muted)">ตึก/อาคาร</label><input class="cfg-input" id="cfgBuilding" placeholder="เช่น ตึกทันตแพทย์ 2" /></div>
@@ -297,6 +314,7 @@ const COURSE_ID    = "ANA224";
 
 let db, fbReady = false;
 let students = {}; let attendance = {}; let roomConfig = {}; let sessionOpen = false;
+let startTime = null; let endTime = null; // 🛠️ ตัวแปรเก็บเวลาเปิดปิดคลาส
 let userLat = null; let userLng = null; let userAcc = null; let isInsideRoom = false; let foundStudent = null; let gpsWatchId = null;
 let userIP = "0.0.0.0";
 
@@ -338,6 +356,8 @@ async function goStudent() {
       const d = snap.data();
       roomConfig = { building: d.building||"", room: d.room||"", lat: d.lat||null, lng: d.lng||null, radius: d.radius||50 };
       sessionOpen = d.sessionOpen || false;
+      startTime = d.startTime || null; // 🛠️ ดึงค่าเวลาเริ่มจาก Firebase
+      endTime = d.endTime || null;     // 🛠️ ดึงค่าเวลาสิ้นสุดจาก Firebase
     }
   } catch(e) { console.error(e); }
   updateUIElements();
@@ -363,6 +383,8 @@ async function loadTeacherData() {
       const d = snapConf.data();
       roomConfig = { building: d.building||"", room: d.room||"", lat: d.lat||null, lng: d.lng||null, radius: d.radius||50 };
       sessionOpen = d.sessionOpen || false;
+      startTime = d.startTime || null; // 🛠️
+      endTime = d.endTime || null;     // 🛠️
     }
     const snapStu = await window._getDoc(window._doc(db, COURSE_ID, "students"));
     students = snapStu.exists() ? snapStu.data() : {};
@@ -422,15 +444,43 @@ function updateGPSUI(status, text) {
   if(status === "error") { document.getElementById("gpsDistBig").innerText = "—"; }
 }
 
+// 🛠️ ฟังก์ชันย่อยสำหรับเช็คว่าปัจจุบันอยู่ในกรอบเวลาเช็คชื่อหรือไม่
+function isTimeValid() {
+  if (!startTime || !endTime) return true; // ถ้าอาจารย์ไม่ได้ตั้งเวลาไว้ ถือว่าใช้ระบบ Manual สวิตช์ปกติ
+  
+  const now = new Date();
+  const currentHM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  
+  return (currentHM >= startTime && currentHM <= endTime);
+}
+
 function updateUIElements() {
   const elToggle = document.getElementById("sessionToggle");
   if(elToggle) elToggle.checked = sessionOpen;
   
+  // 🛠️ อัปเดตการแสดงผลสถานะเรื่องเวลาเช็คชื่ออัตโนมัติ
+  const timeValid = isTimeValid();
   const elText = document.getElementById("sessionStatusText");
-  if(elText) elText.innerText = sessionOpen ? "🟢 เปิดรับการเช็คชื่ออยู่" : "🔴 ปิดระบบชั้นเรียนอยู่";
+  
+  if (elText) {
+    if (startTime && endTime) {
+      elText.innerHTML = `🕒 ตั้งเวลาอัตโนมัติไว้: ${startTime} - ${endTime} น. ` + 
+        (timeValid ? "<b style='color:var(--mint)'>[ภายในเวลาคลาส]</b>" : "<b style='color:var(--danger)'>[หมดเวลาคลาส]</b>");
+    } else {
+      elText.innerText = sessionOpen ? "🟢 เปิดรับการเช็คชื่ออยู่" : "🔴 ปิดระบบชั้นเรียนอยู่";
+    }
+  }
   
   const elBanner = document.getElementById("sessionOffBanner");
-  if(elBanner) elBanner.style.display = sessionOpen ? "none" : "block";
+  if(elBanner) {
+    // ถ้าระบบปิดแบบสวิตช์ หรือ อยู่นอกเหนือเวลาเช็คชื่ออัตโนมัติ ให้เด้งแบนเนอร์แจ้งเตือน
+    elBanner.style.display = (sessionOpen && timeValid) ? "none" : "block";
+    if (startTime && endTime && !timeValid) {
+      elBanner.innerText = `⚠️ ระบบเช็คชื่อปิดแล้ว (กำหนดเวลาเข้าเรียนคือช่วง ${startTime} - ${endTime} น.)`;
+    } else {
+      elBanner.innerText = `⚠️ ขาดเรียน / อาจารย์ยังไม่เปิดคลาสเรียนในขณะนี้`;
+    }
+  }
 
   if(document.getElementById("cfgBuilding")) {
     document.getElementById("cfgBuilding").value = roomConfig.building || "";
@@ -438,6 +488,8 @@ function updateUIElements() {
     document.getElementById("cfgLat").value = roomConfig.lat || "";
     document.getElementById("cfgLng").value = roomConfig.lng || "";
     document.getElementById("cfgRadius").value = roomConfig.radius || 50;
+    document.getElementById("cfgStartTime").value = startTime || ""; // 🛠️ โหลดเวลามาแสดงฝั่งอาจารย์
+    document.getElementById("cfgEndTime").value = endTime || "";     // 🛠️
   }
 
   if(roomConfig.lat && roomConfig.lng && document.getElementById("teacherGeoStatus")) {
@@ -479,7 +531,12 @@ async function searchStudent() {
 function validateCheckinButton() {
   const btn = document.getElementById("btnCheckin");
   if (!btn) return;
+  
+  // 🛠️ ตรวจสอบเงื่อนไขทั้ง สวิตช์เปิดคลาส และ ช่วงเวลาที่ตั้งไว้
+  const timeValid = isTimeValid();
+
   if (!sessionOpen) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดให้เข้าเช็คชื่อ"; btn.className = "btn-checkin"; }
+  else if (!timeValid) { btn.disabled = true; btn.innerText = `หมดเวลาการเช็คชื่อเข้าเรียนประจำวันนี้ (${startTime}-${endTime})`; btn.className = "btn-checkin"; }
   else if (!roomConfig.lat || !roomConfig.lng) { btn.disabled = true; btn.innerText = "อาจารย์ยังไม่เปิดพิกัดห้องเรียน"; btn.className = "btn-checkin"; }
   else if (!isInsideRoom) { btn.disabled = true; btn.innerText = "ระบบล็อก! คุณไม่ได้อยู่ในบริเวณห้องเรียน"; btn.className = "btn-checkin"; }
   else if (!foundStudent) { btn.disabled = true; btn.innerText = "กรุณากรอกรหัสนักศึกษาที่ถูกต้อง"; btn.className = "btn-checkin"; }
@@ -487,7 +544,8 @@ function validateCheckinButton() {
 }
 
 async function doCheckin() {
-  if (!fbReady || !foundStudent || !isInsideRoom || !sessionOpen) return;
+  // 🛠️ เช็คกันเหนียวถ้านักศึกษาแอบกดส่งข้อมูลมาตอนหมดเวลา
+  if (!fbReady || !foundStudent || !isInsideRoom || !sessionOpen || !isTimeValid()) return;
   const btn = document.getElementById("btnCheckin"); btn.disabled = true; btn.innerText = "กำลังตรวจสอบความถูกต้องอุปกรณ์...";
   
   const tKey = todayKey(); 
@@ -539,7 +597,34 @@ async function toggleSession() {
   sessionOpen = document.getElementById("sessionToggle").checked;
   await window._setDoc(window._doc(db, COURSE_ID, "config"), { sessionOpen: sessionOpen }, { merge: true });
   showToast(sessionOpen ? "เปิดชั้นเรียนออนไลน์แล้ว" : "ปิดชั้นเรียนแล้ว");
+  updateUIElements();
 }
+
+// 🛠️ ฟังก์ชันบันทึกตัวตั้งเวลาลง Firebase
+async function saveTimerConfig() {
+  const start = document.getElementById("cfgStartTime").value;
+  const end = document.getElementById("cfgEndTime").value;
+  if(!start || !end) { showToast("⚠️ กรุณาระบุเวลาให้ครบถ้วน"); return; }
+  if(start >= end) { showToast("⚠️ เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด"); return; }
+  
+  startTime = start;
+  endTime = end;
+  sessionOpen = true; // เปิด session สแตนบายไว้ให้เลยเมื่อมีการตั้งเวลา
+  
+  await window._setDoc(window._doc(db, COURSE_ID, "config"), { startTime: startTime, endTime: endTime, sessionOpen: true }, { merge: true });
+  showModal("🕒", "ตั้งค่าเวลาเปิด-ปิดสำเร็จ", `ระบบจะเปิดให้เช็คชื่อเฉพาะช่วงเวลา ${startTime} - ${endTime} น.`);
+  updateUIElements();
+}
+
+// 🛠️ ฟังก์ชันยกเลิกการใช้ระบบตั้งเวลาอัตโนมัติ (กลับไปใช้ Manual)
+async function clearTimerConfig() {
+  startTime = null;
+  endTime = null;
+  await window._setDoc(window._doc(db, COURSE_ID, "config"), { startTime: null, endTime: null }, { merge: true });
+  showToast("ยกเลิกการตั้งเวลาอัตโนมัติแล้ว (กลับสู่โหมด Manual)");
+  updateUIElements();
+}
+
 async function saveGPSConfig() {
   const b = document.getElementById("cfgBuilding").value; const r = document.getElementById("cfgRoom").value;
   const lat = parseFloat(document.getElementById("cfgLat").value); const lng = parseFloat(document.getElementById("cfgLng").value);
@@ -613,60 +698,72 @@ function renderStudentList() {
     r.innerHTML = `
       <div><b>${id}</b> - ${students[id].name}<br>
       <span style="font-size:11px; color:var(--muted)">💻 ผูกอุปกรณ์ไว้: ${devCount}/1 เครื่อง</span></div>
-      <div style="display:flex; gap:4px; flex-shrink:0;">
-        <button class="btn-reset-dev" onclick="resetStudentDevice('${id}')">🔄 รีเซ็ต</button>
-        <button class="btn-delete-stu" onclick="deleteStudent('${id}')">❌ ลบชื่อ</button>
-      </div>
+      <button class="btn-reset-dev" onclick="resetStudentDevice('${id}')">🔄 รีเซ็ตเครื่อง</button>
+      <button class="btn-delete-stu" onclick="deleteStudent('${id}')">🗑️ ลบชื่อ</button>
     `;
     el.appendChild(r);
   });
 }
 
-/* 🛠️ แก้ไขใหม่: ปรับการแสดงผลแถวให้ส่วนหัวข้อ ชื่อ-รหัส อยู่ซ้ายสุด และมี Status Badge ทรงสี่เหลี่ยมผืนผ้าปิดท้ายขวาสุด */
 function renderAttendance() {
-  const el = document.getElementById("attListEl"); if(!el) return; el.innerHTML = "";
-  let present = 0; const total = Object.keys(students).length;
+  const el = document.getElementById("attListEl"); if(!el) return;
+  el.innerHTML = "";
+  let presentCount = 0; let absentCount = 0;
   
   Object.keys(students).sort().forEach(id => {
-    const att = attendance[id]; const r = document.createElement("div"); r.className = "att-row";
-    if(att) { 
-      present++; 
+    const r = document.createElement("div"); r.className = "att-row";
+    if (attendance[id]) {
+      presentCount++;
       r.innerHTML = `
-        <div>
-          <b>${id}</b> ${students[id].name}
-          <div style="font-size:11px; color:var(--muted)">🌐 IP: ${att.ip || '-'} | ID: ${att.deviceId ? att.deviceId.substring(0,8) : '-'} | 🕒 ${att.time} น.</div>
-        </div>
-        <div class="att-status-badge present">มาเรียน</div>
-      `; 
-    }
-    else { 
+        <div><b>${id}</b> - ${students[id].name}<br>
+        <span style="font-size:11px; color:var(--muted)">🕒 เวลา ${attendance[id].time} | IP: ${attendance[id].ip}</span></div>
+        <span class="att-status-badge present">มาเรียน</span>
+      `;
+    } else {
+      absentCount++;
       r.innerHTML = `
-        <div>
-          <b style="color:var(--muted)">${id}</b> <span style="color:var(--muted)">${students[id].name}</span>
-        </div>
-        <div class="att-status-badge absent">ขาดเรียน</div>
-      `; 
+        <div><b>${id}</b> - ${students[id].name}<br>
+        <span style="font-size:11px; color:var(--muted)">⚠️ ยังไม่มีข้อมูลการเช็คชื่อเข้าเรียน</span></div>
+        <span class="att-status-badge absent">ขาดเรียน</span>
+      `;
     }
     el.appendChild(r);
   });
-  document.getElementById("statTotal").innerText = total; document.getElementById("statPresent").innerText = present; document.getElementById("statAbsent").innerText = total - present;
+  
+  document.getElementById("statTotal").innerText = Object.keys(students).length;
+  document.getElementById("statPresent").innerText = presentCount;
+  document.getElementById("statAbsent").innerText = absentCount;
 }
 
 function onDateChange() { refreshAttendance(); }
 
 function exportCSV() {
-  let csv = "\uFEFFรหัสนักศึกษา,ชื่อ,สถานะ,เวลา,IP Address,Device ID\n";
-  Object.keys(students).sort().forEach(id => { 
-    const att = attendance[id];
-    if(att) { csv += `"${id}","${students[id].name}","มาเรียน","${att.time}","${att.ip || '-'}","${att.deviceId || '-'}"\n`; } 
-    else { csv += `"${id}","${students[id].name}","ขาดเรียน","-","-","-"\n`; }
+  const dStr = document.getElementById("attDate").value || todayKey();
+  let csv = "\ufeffรหัสนักศึกษา,ชื่อ-นามสกุล,กลุ่ม,สถานะ,เวลาเช็คชื่อ,IP Address,Device ID\n";
+  Object.keys(students).sort().forEach(id => {
+    const s = students[id]; const a = attendance[id];
+    if(a) {
+      csv += `${id},${s.name},${s.group||'-'},มาเรียน,${a.time},${a.ip},${a.deviceId}\n`;
+    } else {
+      csv += `${id},${s.name},${s.group||'-'},ขาดเรียน,-,-,-\n`;
+    }
   });
-  const b = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(b);
-  const l = document.createElement("a"); l.href = url; l.download = `เช็คชื่อ_ANA224_${document.getElementById("attDate").value}.csv`; l.click();
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+  link.setAttribute("download", `รายงานเข้าเรียน_${COURSE_ID}_${dStr}.csv`);
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
-function showToast(m) { const t = document.getElementById("toast"); t.innerText = m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3000); }
-function showModal(i, t, d) { document.getElementById("modalIcon").innerText = i; document.getElementById("modalTitle").innerText = t; document.getElementById("modalDetail").innerText = d; document.getElementById("statusModal").classList.add("show"); }
+
+function showToast(msg) {
+  const t = document.getElementById("toast"); t.innerText = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+function showModal(icon, title, detail) {
+  document.getElementById("modalIcon").innerText = icon; document.getElementById("modalTitle").innerText = title;
+  document.getElementById("modalDetail").innerText = detail; document.getElementById("statusModal").classList.add("show");
+}
 function closeModal() { document.getElementById("statusModal").classList.remove("show"); }
 </script>
+
 </body>
 </html>
