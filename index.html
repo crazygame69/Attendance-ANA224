@@ -105,7 +105,8 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 
 .stu-row, .att-row { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
 .stu-row div, .att-row div { flex: 1; }
-.btn-reset-dev { background: var(--danger); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.btn-reset-dev { background: var(--sky); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
+.btn-delete-stu { background: var(--danger); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
 
 .att-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .att-status.present { background: var(--mint); }
@@ -141,7 +142,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="header">
     <button class="back-btn" onclick="goLanding()">←</button>
     <div><strong>เช็คชื่อระบุพิกัดเข้าเรียน</strong></div>
-    <div class="rt-badge"><div class="rt-dot"></div>คลาสใหญ่</div>
+    <div class="rt-badge"><div class="rt-dot"></div>LIVE</div>
   </div>
 
   <div class="session-off" id="sessionOffBanner">⚠️ ขาดเรียน / อาจารย์ยังไม่เปิดคลาสเรียนในขณะนี้</div>
@@ -226,9 +227,14 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
       <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">อัปโหลดไฟล์ CSV รายชื่อคลาสเรียน (ทำแค่ครั้งเดียวระบบจำตลอดไป)</div>
       <input type="file" id="csvFile" accept=".csv" onchange="parseCSV(event)" style="color:var(--muted); font-size:13px;" />
     </div>
+    
+    <!-- ส่วนปรับปรุงใหม่: เพิ่มช่องค้นหาชื่อ/รหัสเด็กในหน้าจัดการ -->
     <div class="card" style="margin:14px 0 0 0;">
-      <strong>ฐานข้อมูลรายชื่อและการผูกเครื่องอุปกรณ์ (<span id="stuCount">0</span> คน)</strong>
-      <div id="studentListEl" style="margin-top:10px; max-height:250px; overflow-y:auto;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <strong>ฐานข้อมูลและการผูกเครื่องอุปกรณ์ (<span id="stuCount">0</span> คน)</strong>
+      </div>
+      <input class="id-input" id="teacherSearchStuInput" type="text" placeholder="🔍 พิมพ์รหัส หรือ ชื่อนักศึกษา เพื่อค้นหา..." oninput="renderStudentList()" style="width:100%; margin-bottom:12px; font-size:14px; padding:10px;" />
+      <div id="studentListEl" style="max-height:300px; overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -308,7 +314,6 @@ function goLanding() { if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchI
 async function goStudent() { 
   showScreen("student"); 
   startGPSWatch();
-  // ดึงคอนฟิกครั้งเดียวตอนเข้าหน้าเรียน เพื่อประหยัด Connection รีโหลดตามสั่ง
   try {
     const snap = await window._getDoc(window._doc(db, COURSE_ID, "config"));
     if(snap.exists()) {
@@ -434,7 +439,6 @@ async function searchStudent() {
   btn.disabled = true; btn.innerText = "กำลังค้นหา...";
 
   try {
-    // โหลดรายชื่อก้อนใหญ่สดๆ เพื่อลดภาระ Connection ค้างคาเว็บ
     const snapStu = await window._getDoc(window._doc(db, COURSE_ID, "students"));
     students = snapStu.exists() ? snapStu.data() : {};
     
@@ -478,7 +482,6 @@ async function doCheckin() {
       showModal("❌", "เช็คชื่อไม่สำเร็จ", "รหัสนักศึกษานี้บันทึกเวลาไปแล้วในวันนี้"); validateCheckinButton(); return;
     }
 
-    // ดึงข้อมูลอุปกรณ์ล่าสุดป้องกันการส่งซ้อน
     const snapStuRefresh = await window._getDoc(stuRef);
     if(snapStuRefresh.exists()) students = snapStuRefresh.data();
 
@@ -540,6 +543,7 @@ function parseCSV(e) {
       }
     });
     await window._setDoc(window._doc(db, COURSE_ID, "students"), students); showToast("อัปโหลดรายชื่อถาวรเรียบร้อย");
+    document.getElementById("stuCount").innerText = Object.keys(students).length;
     renderStudentList();
   }; r.readAsText(file, 'UTF-8');
 }
@@ -555,6 +559,19 @@ async function resetStudentDevice(id) {
   }
 }
 
+/* ส่วนปรับปรุงใหม่: ฟังก์ชันลบรายชื่อนักศึกษาออกจาก Cloud Database */
+async function deleteStudent(id) {
+  if(confirm(`🚨 ยืนยันการลบรายชื่อรหัส ${id} (${students[id].name}) ออกจากวิชานี้ถาวร?\n(การลบนี้จะไม่สามารถย้อนคืนข้อมูลได้)`)) {
+    if(students[id]) {
+      delete students[id]; // ลบออกจากอ็อบเจกต์ชั่วคราว
+      await window._setDoc(window._doc(db, COURSE_ID, "students"), students); // บันทึกทับบน Cloud
+      showToast("🗑️ ลบรายชื่อนักศึกษาเรียบร้อยแล้ว");
+      document.getElementById("stuCount").innerText = Object.keys(students).length;
+      renderStudentList();
+    }
+  }
+}
+
 async function refreshAttendance() {
   const dStr = document.getElementById("attDate").value || todayKey();
   try {
@@ -565,15 +582,26 @@ async function refreshAttendance() {
   } catch(e) { showToast("รีเฟรชข้อมูลล้มเหลว"); }
 }
 
+/* ส่วนปรับปรุงใหม่: แสดงรายชื่อนักศึกษาพร้อมกลไก Filter ค้นหาชื่อและรหัสสดๆ */
 function renderStudentList() {
-  const el = document.getElementById("studentListEl"); el.innerHTML = "";
+  const el = document.getElementById("studentListEl"); if(!el) return;
+  const kw = document.getElementById("teacherSearchStuInput").value.trim().toLowerCase(); // คีย์เวิร์ดที่อาจารย์พิมพ์
+  el.innerHTML = "";
+  
   Object.keys(students).sort().forEach(id => {
+    const name = students[id].name.toLowerCase();
+    // ถ้าพิมพ์คำค้นหาแล้วไม่ตรงกับ รหัส หรือ ชื่อ ให้ข้ามไป (Filter)
+    if(kw && !id.includes(kw) && !name.includes(kw)) return;
+
     const r = document.createElement("div"); r.className = "stu-row";
     const devCount = students[id].devices ? students[id].devices.length : 0;
     r.innerHTML = `
       <div><b>${id}</b> - ${students[id].name}<br>
       <span style="font-size:11px; color:var(--muted)">💻 ผูกอุปกรณ์ไว้: ${devCount}/1 เครื่อง</span></div>
-      <button class="btn-reset-dev" onclick="resetStudentDevice('${id}')">🔄 รีเซ็ต</button>
+      <div style="display:flex; gap:4px; flex-shrink:0;">
+        <button class="btn-reset-dev" onclick="resetStudentDevice('${id}')">🔄 รีเซ็ต</button>
+        <button class="btn-delete-stu" onclick="deleteStudent('${id}')">❌ ลบชื่อ</button>
+      </div>
     `;
     el.appendChild(r);
   });
