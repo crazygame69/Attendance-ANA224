@@ -150,10 +150,10 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 
 <div class="screen" id="screen-landing">
   <div class="landing-logo">🦷</div>
-  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบเช็คชื่อออนไลน์ (เวอร์ชันประหยัดทราฟฟิก รองรับ 200 คน+)</span></div>
+  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบเช็คชื่อออนไลน์ (บันทึก IP / ล็อกเครื่อง)</span></div>
   <div class="btn-row">
     <button class="btn-land student" onclick="goStudent()">🎓 นักศึกษาเข้าเช็คชื่อ</button>
-    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมอาจารย์</button>
+    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมสำหรับอาจารย์</button>
   </div>
 </div>
 
@@ -161,7 +161,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="header">
     <button class="back-btn" onclick="goLanding()">←</button>
     <div><strong>เช็คชื่อระบุพิกัดเข้าเรียน</strong></div>
-    <div class="rt-badge"><div class="rt-dot"></div>คลาสใหญ่</div>
+    <div class="rt-badge"><div class="rt-dot"></div>LIVE</div>
   </div>
 
   <div class="session-off" id="sessionOffBanner">⚠️ ขาดเรียน / อาจารย์ยังไม่เปิดคลาสเรียนในขณะนี้</div>
@@ -181,7 +181,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="card">
     <div style="font-size:12px; color:var(--muted)">ป้อนรหัสนักศึกษาเพื่อตรวจสอบชื่อ</div>
     <div class="id-input-row">
-      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 10 หลัก" inputmode="numeric" />
+      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 7 หลัก" inputmode="numeric" />
       <button class="btn-search" id="btnSearchStu" onclick="searchStudent()">🔍 ค้นหา</button>
     </div>
 
@@ -507,14 +507,14 @@ async function doCheckin() {
 
     for (const sId in students) {
       if (sId !== foundStudent.id && students[sId].devices && students[sId].devices.includes(currentDeviceId)) {
-        showModal("❌ ตรวจพบการทุจริต", "สลับเครื่องกดแทนกัน", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถนำมาใช้กดซ้ำให้กันได้ครับ`);
+        showModal("❌ ตรวจพบการทุจริต", "สลับเครื่องกดแทนกัน", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถนำมาใช้กดซ้ำให้กันได้ค่ะ`);
         validateCheckinButton(); return;
       }
     }
 
     if (!registeredDevices.includes(currentDeviceId)) {
       if (registeredDevices.length >= 1) {
-        showModal("⚠️ เครื่องเต็ม", "ไม่สามารถลงทะเบียนเพิ่มได้", "รหัสของคุณถูกผูกกับมือถือเครื่องอื่นไปแล้ว หากมีการเปลี่ยนเครื่องโปรดแจ้งอาจารย์เพื่อรีเซ็ตครับ");
+        showModal("⚠️ เครื่องเต็ม", "ไม่สามารถลงทะเบียนเพิ่มได้", "รหัสของคุณถูกผูกกับมือถือเครื่องอื่นไปแล้ว หากมีการเปลี่ยนเครื่องโปรดแจ้งอาจารย์เพื่อรีเซ็ตค่ะ");
         validateCheckinButton(); return;
       }
       registeredDevices.push(currentDeviceId);
