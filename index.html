@@ -103,14 +103,33 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 
 .save-badge { grid-column: span 2; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(16,185,129,0.1); border: 1px dashed var(--mint); color: var(--mint); font-size: 13px; margin-top: 8px; font-weight: 500; }
 
-.stu-row, .att-row { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
+.stu-row, .att-row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; background: var(--card); margin-bottom: 6px; font-size: 14px; }
 .stu-row div, .att-row div { flex: 1; }
 .btn-reset-dev { background: var(--sky); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
 .btn-delete-stu { background: var(--danger); border: none; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
 
-.att-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.att-status.present { background: var(--mint); }
-.att-status.absent { background: var(--danger); }
+/* 🛠️ แก้ไขใหม่: ปรับปรุงโครงสร้างสี่เหลี่ยมผืนผ้า (Status Badge) ไม่สั้นไม่ยาวเกินไป */
+.att-status-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  min-width: 75px;
+  max-width: 85px;
+  flex-shrink: 0;
+}
+.att-status-badge.present {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.att-status-badge.absent {
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
 
 .log-stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .stat-chip { background: var(--card); border-radius: 8px; padding: 12px; text-align: center; }
@@ -131,10 +150,10 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 
 <div class="screen" id="screen-landing">
   <div class="landing-logo">🦷</div>
-  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบเช็คชื่อออนไลน์ (บันทึก IP / ล็อกเครื่อง)</span></div>
+  <div class="landing-title">ANA224 จุลกายวิภาคศาสตร์<br><span style="font-size:14px; font-weight:400; color:var(--muted);">ระบบเช็คชื่อออนไลน์ (เวอร์ชันประหยัดทราฟฟิก รองรับ 200 คน+)</span></div>
   <div class="btn-row">
     <button class="btn-land student" onclick="goStudent()">🎓 นักศึกษาเข้าเช็คชื่อ</button>
-    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมสำหรับอาจารย์</button>
+    <button class="btn-land teacher" onclick="showLogin()">🔐 แผงควบคุมอาจารย์</button>
   </div>
 </div>
 
@@ -142,7 +161,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="header">
     <button class="back-btn" onclick="goLanding()">←</button>
     <div><strong>เช็คชื่อระบุพิกัดเข้าเรียน</strong></div>
-    <div class="rt-badge"><div class="rt-dot"></div>LIVE</div>
+    <div class="rt-badge"><div class="rt-dot"></div>คลาสใหญ่</div>
   </div>
 
   <div class="session-off" id="sessionOffBanner">⚠️ ขาดเรียน / อาจารย์ยังไม่เปิดคลาสเรียนในขณะนี้</div>
@@ -162,7 +181,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="card">
     <div style="font-size:12px; color:var(--muted)">ป้อนรหัสนักศึกษาเพื่อตรวจสอบชื่อ</div>
     <div class="id-input-row">
-      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 7 หลัก" inputmode="numeric" />
+      <input class="id-input" id="stuIdInput" type="text" placeholder="รหัสนักศึกษา 10 หลัก" inputmode="numeric" />
       <button class="btn-search" id="btnSearchStu" onclick="searchStudent()">🔍 ค้นหา</button>
     </div>
 
@@ -228,7 +247,6 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
       <input type="file" id="csvFile" accept=".csv" onchange="parseCSV(event)" style="color:var(--muted); font-size:13px;" />
     </div>
     
-    <!-- ส่วนปรับปรุงใหม่: เพิ่มช่องค้นหาชื่อ/รหัสเด็กในหน้าจัดการ -->
     <div class="card" style="margin:14px 0 0 0;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
         <strong>ฐานข้อมูลและการผูกเครื่องอุปกรณ์ (<span id="stuCount">0</span> คน)</strong>
@@ -249,7 +267,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
       <div class="stat-chip"><div class="stat-val" id="statPresent" style="color:var(--mint)">0</div><div style="font-size:11px;color:var(--muted)">มาเรียน</div></div>
       <div class="stat-chip"><div class="stat-val" id="statAbsent" style="color:var(--danger)">0</div><div style="font-size:11px;color:var(--muted)">ขาดเรียน</div></div>
     </div>
-    <div id="attListEl" style="max-height:300px; overflow-y:auto;"></div>
+    <div id="attListEl" style="max-height:350px; overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -489,14 +507,14 @@ async function doCheckin() {
 
     for (const sId in students) {
       if (sId !== foundStudent.id && students[sId].devices && students[sId].devices.includes(currentDeviceId)) {
-        showModal("❌ ตรวจพบการทุจริต", "สลับเครื่องกดแทนกัน", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถนำมาใช้กดซ้ำให้กันได้ค่ะ`);
+        showModal("❌ ตรวจพบการทุจริต", "สลับเครื่องกดแทนกัน", `อุปกรณ์ชิ้นนี้ถูกลงทะเบียนเป็นเครื่องประจำตัวของรหัสอื่นไปแล้ว! ไม่สามารถนำมาใช้กดซ้ำให้กันได้ครับ`);
         validateCheckinButton(); return;
       }
     }
 
     if (!registeredDevices.includes(currentDeviceId)) {
       if (registeredDevices.length >= 1) {
-        showModal("⚠️ เครื่องเต็ม", "ไม่สามารถลงทะเบียนเพิ่มได้", "รหัสของคุณถูกผูกกับมือถือเครื่องอื่นไปแล้ว หากมีการเปลี่ยนเครื่องโปรดแจ้งอาจารย์เพื่อรีเซ็ตค่ะ");
+        showModal("⚠️ เครื่องเต็ม", "ไม่สามารถลงทะเบียนเพิ่มได้", "รหัสของคุณถูกผูกกับมือถือเครื่องอื่นไปแล้ว หากมีการเปลี่ยนเครื่องโปรดแจ้งอาจารย์เพื่อรีเซ็ตครับ");
         validateCheckinButton(); return;
       }
       registeredDevices.push(currentDeviceId);
@@ -559,12 +577,11 @@ async function resetStudentDevice(id) {
   }
 }
 
-/* ส่วนปรับปรุงใหม่: ฟังก์ชันลบรายชื่อนักศึกษาออกจาก Cloud Database */
 async function deleteStudent(id) {
   if(confirm(`🚨 ยืนยันการลบรายชื่อรหัส ${id} (${students[id].name}) ออกจากวิชานี้ถาวร?\n(การลบนี้จะไม่สามารถย้อนคืนข้อมูลได้)`)) {
     if(students[id]) {
-      delete students[id]; // ลบออกจากอ็อบเจกต์ชั่วคราว
-      await window._setDoc(window._doc(db, COURSE_ID, "students"), students); // บันทึกทับบน Cloud
+      delete students[id];
+      await window._setDoc(window._doc(db, COURSE_ID, "students"), students);
       showToast("🗑️ ลบรายชื่อนักศึกษาเรียบร้อยแล้ว");
       document.getElementById("stuCount").innerText = Object.keys(students).length;
       renderStudentList();
@@ -582,15 +599,13 @@ async function refreshAttendance() {
   } catch(e) { showToast("รีเฟรชข้อมูลล้มเหลว"); }
 }
 
-/* ส่วนปรับปรุงใหม่: แสดงรายชื่อนักศึกษาพร้อมกลไก Filter ค้นหาชื่อและรหัสสดๆ */
 function renderStudentList() {
   const el = document.getElementById("studentListEl"); if(!el) return;
-  const kw = document.getElementById("teacherSearchStuInput").value.trim().toLowerCase(); // คีย์เวิร์ดที่อาจารย์พิมพ์
+  const kw = document.getElementById("teacherSearchStuInput").value.trim().toLowerCase();
   el.innerHTML = "";
   
   Object.keys(students).sort().forEach(id => {
     const name = students[id].name.toLowerCase();
-    // ถ้าพิมพ์คำค้นหาแล้วไม่ตรงกับ รหัส หรือ ชื่อ ให้ข้ามไป (Filter)
     if(kw && !id.includes(kw) && !name.includes(kw)) return;
 
     const r = document.createElement("div"); r.className = "stu-row";
@@ -607,23 +622,31 @@ function renderStudentList() {
   });
 }
 
+/* 🛠️ แก้ไขใหม่: ปรับการแสดงผลแถวให้ส่วนหัวข้อ ชื่อ-รหัส อยู่ซ้ายสุด และมี Status Badge ทรงสี่เหลี่ยมผืนผ้าปิดท้ายขวาสุด */
 function renderAttendance() {
   const el = document.getElementById("attListEl"); if(!el) return; el.innerHTML = "";
   let present = 0; const total = Object.keys(students).length;
+  
   Object.keys(students).sort().forEach(id => {
     const att = attendance[id]; const r = document.createElement("div"); r.className = "att-row";
     if(att) { 
       present++; 
       r.innerHTML = `
-        <div class="att-status present"></div>
         <div>
           <b>${id}</b> ${students[id].name}
-          <div style="font-size:11px; color:var(--muted)">🌐 IP: ${att.ip || '-'} | ID: ${att.deviceId ? att.deviceId.substring(0,8) : '-'}</div>
+          <div style="font-size:11px; color:var(--muted)">🌐 IP: ${att.ip || '-'} | ID: ${att.deviceId ? att.deviceId.substring(0,8) : '-'} | 🕒 ${att.time} น.</div>
         </div>
-        <div style="text-align:right; color:var(--mint); font-family:'IBM Plex Mono',monospace;">${att.time} น.</div>
+        <div class="att-status-badge present">มาเรียน</div>
       `; 
     }
-    else { r.innerHTML = `<div class="att-status absent"></div><div style="color:var(--muted)"><b>${id}</b> ${students[id].name}</div><div style="text-align:right; color:var(--danger)">ขาดเรียน</div>`; }
+    else { 
+      r.innerHTML = `
+        <div>
+          <b style="color:var(--muted)">${id}</b> <span style="color:var(--muted)">${students[id].name}</span>
+        </div>
+        <div class="att-status-badge absent">ขาดเรียน</div>
+      `; 
+    }
     el.appendChild(r);
   });
   document.getElementById("statTotal").innerText = total; document.getElementById("statPresent").innerText = present; document.getElementById("statAbsent").innerText = total - present;
